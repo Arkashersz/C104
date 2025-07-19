@@ -11,11 +11,11 @@ import { createClient } from '@/lib/supabase/client'
 import { generateContractNumber } from '@/lib/utils'
 
 // Componente Textarea inline
-const Textarea = ({ 
-  className, 
-  error, 
-  ...props 
-}: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { error?: string }) => (
+interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  error?: string
+}
+
+const Textarea = ({ className, error, ...props }: TextareaProps) => (
   <div className="w-full">
     <textarea
       className={`flex min-h-[80px] w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500 focus:ring-2 focus:ring-primary-light focus:ring-offset-2 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 ${
@@ -161,7 +161,7 @@ export function ContractForm({
     if (checked) {
       setValue('notification_days', [...currentDays, days].sort((a, b) => b - a))
     } else {
-      setValue('notification_days', currentDays.filter(d => d !== days))
+      setValue('notification_days', currentDays.filter((d: number) => d !== days))
     }
   }
 
@@ -242,7 +242,7 @@ export function ContractForm({
             <Input
               {...register('value', { 
                 valueAsNumber: true,
-                setValueAs: (value) => value === '' ? 0 : parseFloat(value) || 0
+                setValueAs: (value: string) => value === '' ? 0 : parseFloat(value) || 0
               })}
               type="number"
               step="0.01"
