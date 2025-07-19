@@ -1,0 +1,46 @@
+{
+  "name": "contract-management",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.1.1",
+    "@radix-ui/react-dialog": "^1.1.14",
+    "@radix-ui/react-select": "^2.2.5",
+    "@radix-ui/react-toast": "^1.2.14",
+    "@supabase/auth-helpers-nextjs": "^0.10.0",
+    "@supabase/supabase-js": "^2.52.0",
+    "@tanstack/react-query": "^5.83.0",
+    "@tanstack/react-table": "^8.21.3",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.525.0",
+    "next": "15.4.2",
+    "react": "19.1.0",
+    "react-big-calendar": "^1.19.4",
+    "react-dom": "19.1.0",
+    "react-hook-form": "^7.60.0",
+    "react-hot-toast": "^2.5.2",
+    "recharts": "^3.1.0",
+    "tailwind-merge": "^3.3.1",
+    "zod": "^4.0.5",
+    "zustand": "^5.0.6"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/forms": "^0.5.10",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20.19.9",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "eslint": "^9",
+    "eslint-config-next": "15.4.2",
+    "tailwindcss": "^4",
+    "typescript": "^5.8.3"
+  }
+}
