@@ -10,6 +10,7 @@ import { NotificationCenter } from '@/components/dashboard/notification-center'
 import { ContractForm } from '@/components/forms/contract-form-simple'
 import { BiddingProcessForm } from '@/components/forms/bidding-process-form'
 import { MobilePreview } from '@/components/dashboard/mobile-preview'
+import { DemoNote } from '@/components/ui/demo-note'
 
 export default function Dashboard() {
   const [showContractForm, setShowContractForm] = useState(false)
@@ -19,24 +20,24 @@ export default function Dashboard() {
     <div className="flex min-h-screen bg-background">
       <DemoNote />
       <Sidebar />
-      
+
       <main className="flex-1 ml-64 p-8">
-        <DashboardHeader 
+        <DashboardHeader
           onNewContract={() => setShowContractForm(true)}
           onNewBidding={() => setShowBiddingForm(true)}
         />
-        
+
         <StatsGrid />
-        
+
         <ContractsTable />
-        
+
         <BiddingProcessesTable />
-        
+
         <NotificationCenter />
-        
+
         {showContractForm && (
           <div className="mt-8">
-            <ContractForm 
+            <ContractForm
               onSuccess={() => {
                 setShowContractForm(false)
                 alert('✅ Contrato criado com sucesso!')
@@ -44,10 +45,10 @@ export default function Dashboard() {
             />
           </div>
         )}
-        
+
         {showBiddingForm && (
           <div className="mt-8">
-            <BiddingProcessForm 
+            <BiddingProcessForm
               onSuccess={() => {
                 setShowBiddingForm(false)
                 alert('✅ Processo licitatório criado com sucesso!')
@@ -55,7 +56,7 @@ export default function Dashboard() {
             />
           </div>
         )}
-        
+
         <MobilePreview />
       </main>
     </div>
