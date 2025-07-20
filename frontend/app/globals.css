@@ -14,6 +14,9 @@
   --surface: #ffffff;
   --text-primary: #0f132e;
   --text-secondary: #536d88;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --error: #ef4444;
 }
 
 * {
@@ -35,21 +38,61 @@ body {
 }
 
 /* Utility Classes */
-.bg-primary-dark { background-color: var(--primary-dark) !important; }
-.bg-primary-medium { background-color: var(--primary-medium) !important; }
-.bg-primary-light { background-color: var(--primary-light) !important; }
-.bg-accent-dark { background-color: var(--accent-dark) !important; }
-.bg-accent-light { background-color: var(--accent-light) !important; }
-.bg-background { background-color: var(--background) !important; }
-.bg-surface { background-color: var(--surface) !important; }
+.bg-primary-dark {
+  background-color: var(--primary-dark) !important;
+}
 
-.text-primary-dark { color: var(--primary-dark) !important; }
-.text-primary-medium { color: var(--primary-medium) !important; }
-.text-primary-light { color: var(--primary-light) !important; }
-.text-accent-dark { color: var(--accent-dark) !important; }
-.text-accent-light { color: var(--accent-light) !important; }
-.text-text-primary { color: var(--text-primary) !important; }
-.text-text-secondary { color: var(--text-secondary) !important; }
+.bg-primary-medium {
+  background-color: var(--primary-medium) !important;
+}
+
+.bg-primary-light {
+  background-color: var(--primary-light) !important;
+}
+
+.bg-accent-dark {
+  background-color: var(--accent-dark) !important;
+}
+
+.bg-accent-light {
+  background-color: var(--accent-light) !important;
+}
+
+.bg-background {
+  background-color: var(--background) !important;
+}
+
+.bg-surface {
+  background-color: var(--surface) !important;
+}
+
+.text-primary-dark {
+  color: var(--primary-dark) !important;
+}
+
+.text-primary-medium {
+  color: var(--primary-medium) !important;
+}
+
+.text-primary-light {
+  color: var(--primary-light) !important;
+}
+
+.text-accent-dark {
+  color: var(--accent-dark) !important;
+}
+
+.text-accent-light {
+  color: var(--accent-light) !important;
+}
+
+.text-text-primary {
+  color: var(--text-primary) !important;
+}
+
+.text-text-secondary {
+  color: var(--text-secondary) !important;
+}
 
 .shadow-custom {
   box-shadow: 0 4px 6px -1px rgba(15, 19, 46, 0.1), 0 2px 4px -1px rgba(15, 19, 46, 0.06) !important;
@@ -61,8 +104,15 @@ body {
 
 /* Animation Classes */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-fade-in {
@@ -144,21 +194,11 @@ body {
 }
 
 .table-container tr:hover {
-  background: rgba(0,0,0,0.02) !important;
+  background: rgba(0, 0, 0, 0.02) !important;
 }
 
-/* Sidebar Styles */
-.sidebar {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  height: 100vh !important;
-  width: 16rem !important;
-  background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-medium) 100%) !important;
-  color: white !important;
-  padding: 2rem 1.5rem !important;
-  overflow-y: auto !important;
-  z-index: 40 !important;
+.table-container tr:hover {
+  background: rgba(0, 0, 0, 0.02) !important;
 }
 
 .sidebar-nav-item {
@@ -170,12 +210,12 @@ body {
   border-radius: 0.5rem !important;
   cursor: pointer !important;
   transition: all 0.3s ease !important;
-  color: rgba(255,255,255,0.8) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
 }
 
 .sidebar-nav-item:hover,
 .sidebar-nav-item.active {
-  background: rgba(255,255,255,0.1) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
   color: white !important;
   transform: translateX(4px) !important;
 }
@@ -185,19 +225,8 @@ body {
   color: var(--primary-dark) !important;
 }
 
-/* Main Content */
-.main-content {
-  margin-left: 16rem !important;
-  padding: 2rem !important;
-  min-height: 100vh !important;
-}
-
 /* Responsive */
 @media (max-width: 1024px) {
-  .sidebar {
-    transform: translateX(-100%) !important;
-  }
-  
   .main-content {
     margin-left: 0 !important;
   }

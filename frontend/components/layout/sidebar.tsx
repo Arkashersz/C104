@@ -1,30 +1,18 @@
-// components/layout/sidebar.tsx
 'use client'
 
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import {
-  LayoutDashboard,
-  FileText,
-  Gavel,
-  Bell,
-  BarChart3,
-  Users,
-  Settings,
-  Menu,
-  X
-} from 'lucide-react'
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Contratos', href: '/contracts', icon: FileText },
-  { name: 'Licitações', href: '/bidding', icon: Gavel },
-  { name: 'Notificações', href: '/notifications', icon: Bell },
-  { name: 'Relatórios', href: '/reports', icon: BarChart3 },
-  { name: 'Usuários', href: '/users', icon: Users },
-  { name: 'Configurações', href: '/settings', icon: Settings },
+  { name: 'Dashboard', href: '/', icon: '📊' },
+  { name: 'Contratos', href: '/contracts', icon: '📄' },
+  { name: 'Licitações', href: '/bidding', icon: '⚖️' },
+  { name: 'Notificações', href: '/notifications', icon: '🔔' },
+  { name: 'Relatórios', href: '/reports', icon: '📈' },
+  { name: 'Usuários', href: '/users', icon: '👥' },
+  { name: 'Configurações', href: '/settings', icon: '⚙️' },
 ]
 
 export function Sidebar() {
@@ -38,7 +26,8 @@ export function Sidebar() {
         className="lg:hidden fixed top-4 left-4 z-50 p-3 rounded-lg bg-primary-dark text-white shadow-lg hover:bg-primary-medium transition-colors"
         onClick={() => setIsOpen(!isOpen)}
       >
-        {isOpen ? <X size={20} /> : <Menu size={20} />}
+        <span className="sr-only">Toggle menu</span>
+        {isOpen ? '✕' : '☰'}
       </button>
 
       {/* Overlay for mobile */}
@@ -75,10 +64,12 @@ export function Sidebar() {
                 )}
                 onClick={() => setIsOpen(false)}
               >
-                <item.icon className={cn(
-                  'mr-3 h-5 w-5 transition-transform duration-200',
+                <span className={cn(
+                  'mr-3 text-xl transition-transform duration-200',
                   'group-hover:scale-110'
-                )} />
+                )}>
+                  {item.icon}
+                </span>
                 {item.name}
                 {item.name === 'Notificações' && (
                   <span className="ml-auto bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
