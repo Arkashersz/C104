@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { generateContractNumber } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
 
 // Componente Textarea inline
 interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -27,6 +28,7 @@ const useToast = () => {
   const toast = {
     success: (title: string, message?: string) => {
       console.log('SUCCESS:', title, message)
+      // Usando alert como substituto para um sistema de toast completo
       alert(`✅ ${title}${message ? `\n${message}` : ''}`)
     },
     error: (title: string, message?: string) => {
@@ -60,11 +62,11 @@ export function ContractForm({
   onSuccess,
   initialData,
   mode = 'create',
-  contractId
 }: ContractFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const { toast } = useToast()
+  const supabase = createClient()
 
   // Estado do formulário
   const [formData, setFormData] = useState<ContractFormData>({
@@ -105,11 +107,26 @@ export function ContractForm({
     setIsLoading(true)
 
     try {
-      // Simular envio para API
-      console.log('Dados do contrato:', formData)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Usuário não autenticado. Faça o login para continuar.');
+      }
+      const token = session.access_token;
 
-      // Simular delay de rede
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      const response = await fetch('http://localhost:3001/api/contracts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Falha ao criar o contrato.');
+      }
 
       toast.success(
         'Contrato criado com sucesso!',

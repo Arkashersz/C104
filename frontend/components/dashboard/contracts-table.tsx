@@ -1,57 +1,46 @@
-export function ContractsTable() {
-    const contracts = [
-      {
-        number: 'CTR-2024-001',
-        supplier: 'TechSolutions Ltda',
-        value: 'R$ 125.000,00',
-        dueDate: '15/08/2025',
-        status: 'warning',
-        statusLabel: 'Próximo ao Venc.',
-        action: 'Editar'
-      },
-      {
-        number: 'CTR-2024-002',
-        supplier: 'Construtora ABC',
-        value: 'R$ 850.000,00',
-        dueDate: '22/09/2025',
-        status: 'active',
-        statusLabel: 'Ativo',
-        action: 'Editar'
-      },
-      {
-        number: 'CTR-2023-045',
-        supplier: 'Suprimentos Gerais',
-        value: 'R$ 45.500,00',
-        dueDate: '05/08/2025',
-        status: 'expired',
-        statusLabel: 'Vencido',
-        action: 'Renovar'
-      },
-      {
-        number: 'CTR-2024-003',
-        supplier: 'Serviços Digitais Pro',
-        value: 'R$ 280.000,00',
-        dueDate: '30/11/2025',
-        status: 'active',
-        statusLabel: 'Ativo',
-        action: 'Editar'
-      }
-    ]
-  
+import {formatCurrency, formatDate} from '@/lib/utils';
+
+interface Contract {
+  id: string;
+  contract_number: string;
+  supplier: string;
+  value: number;
+  end_date: string;
+  status: 'active' | 'expired' | 'cancelled' | 'renewed';
+}
+
+interface ContractsTableProps {
+    contracts: Contract[];
+    isLoading: boolean;
+}
+
+export function ContractsTable({ contracts, isLoading }: ContractsTableProps) {
     const getStatusClass = (status: string) => {
       const classes = {
         active: 'bg-green-50 text-green-700',
         warning: 'bg-yellow-50 text-yellow-700',
-        expired: 'bg-red-50 text-red-700'
+        expired: 'bg-red-50 text-red-700',
+        cancelled: 'bg-gray-50 text-gray-700',
+        renewed: 'bg-blue-50 text-blue-700'
       }
       return classes[status as keyof typeof classes] || classes.active
     }
-  
+    
+    const getStatusLabel = (status: string) => {
+        const labels = {
+            active: 'Ativo',
+            expired: 'Vencido',
+            cancelled: 'Cancelado',
+            renewed: 'Renovado'
+        };
+        return labels[status as keyof typeof labels] || 'Desconhecido';
+    }
+
     return (
       <div className="table-container mb-8">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-semibold text-primary-dark">
-            Contratos Próximos ao Vencimento
+            Contratos
           </h3>
           <input 
             type="text" 
@@ -85,32 +74,42 @@ export function ContractsTable() {
               </tr>
             </thead>
             <tbody>
-              {contracts.map((contract, index) => (
-                <tr key={index} className="hover:bg-gray-50 transition-colors">
-                  <td className="p-4 border-b border-gray-100">
-                    <strong>{contract.number}</strong>
-                  </td>
-                  <td className="p-4 border-b border-gray-100">
-                    {contract.supplier}
-                  </td>
-                  <td className="p-4 border-b border-gray-100">
-                    {contract.value}
-                  </td>
-                  <td className="p-4 border-b border-gray-100">
-                    {contract.dueDate}
-                  </td>
-                  <td className="p-4 border-b border-gray-100">
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusClass(contract.status)}`}>
-                      {contract.statusLabel}
-                    </span>
-                  </td>
-                  <td className="p-4 border-b border-gray-100">
-                    <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 transition-colors">
-                      {contract.action === 'Editar' ? '✏️' : '🔄'} {contract.action}
-                    </button>
-                  </td>
+              {isLoading ? (
+                <tr>
+                    <td colSpan={6} className="text-center p-4">Carregando...</td>
                 </tr>
-              ))}
+              ) : contracts.length === 0 ? (
+                <tr>
+                    <td colSpan={6} className="text-center p-4">Nenhum contrato encontrado.</td>
+                </tr>
+              ) : (
+                contracts.map((contract) => (
+                    <tr key={contract.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="p-4 border-b border-gray-100">
+                        <strong>{contract.contract_number}</strong>
+                    </td>
+                    <td className="p-4 border-b border-gray-100">
+                        {contract.supplier}
+                    </td>
+                    <td className="p-4 border-b border-gray-100">
+                        {formatCurrency(contract.value)}
+                    </td>
+                    <td className="p-4 border-b border-gray-100">
+                        {formatDate(contract.end_date)}
+                    </td>
+                    <td className="p-4 border-b border-gray-100">
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusClass(contract.status)}`}>
+                        {getStatusLabel(contract.status)}
+                        </span>
+                    </td>
+                    <td className="p-4 border-b border-gray-100">
+                        <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 transition-colors">
+                        ✏️ Editar
+                        </button>
+                    </td>
+                    </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
