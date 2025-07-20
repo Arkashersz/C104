@@ -1,11 +1,11 @@
 // components/forms/contract-form-simple.tsx
 'use client'
 
-import { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { generateContractNumber } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { syncUserWithDatabase } from '@/lib/supabase/client'
 
 // Componente Textarea inline
 interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -13,30 +13,25 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 }
 
 const Textarea = ({ className, error, ...props }: TextareaProps) => (
-  <div className="w-full">
-    <textarea
-      className={`flex min-h-[80px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50 ${error ? 'border-red-500 focus:ring-red-500' : ''
-        } ${className || ''}`}
-      {...props}
-    />
-    {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
-  </div>
+  <textarea
+    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
+      error ? 'border-red-500' : 'border-gray-300'
+    } ${className}`}
+    {...props}
+  />
 )
 
 // Hook de toast inline
 const useToast = () => {
-  const toast = {
-    success: (title: string, message?: string) => {
-      console.log('SUCCESS:', title, message)
-      // Usando alert como substituto para um sistema de toast completo
-      alert(`✅ ${title}${message ? `\n${message}` : ''}`)
-    },
-    error: (title: string, message?: string) => {
-      console.error('ERROR:', title, message)
-      alert(`❌ ${title}${message ? `\n${message}` : ''}`)
-    }
+  const showToast = (type: 'success' | 'error', title: string, message?: string) => {
+    // Implementação simples de toast - você pode usar uma biblioteca como react-hot-toast
+    console.log(`${type.toUpperCase()}: ${title}${message ? ` - ${message}` : ''}`)
   }
-  return { toast }
+
+  return {
+    success: (title: string, message?: string) => showToast('success', title, message),
+    error: (title: string, message?: string) => showToast('error', title, message)
+  }
 }
 
 // Tipo para os dados do formulário
@@ -63,31 +58,29 @@ export function ContractForm({
   initialData,
   mode = 'create',
 }: ContractFormProps) {
+  const [formData, setFormData] = useState<ContractFormData>({
+    contract_number: generateContractNumber(),
+    title: '',
+    description: '',
+    supplier: '',
+    value: 0,
+    start_date: '',
+    end_date: '',
+    notification_days: [90, 60, 30, 15, 7],
+    ...initialData
+  })
+  const [errors, setErrors] = useState<Partial<Record<keyof ContractFormData, string>>>({})
   const [isLoading, setIsLoading] = useState(false)
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const { toast } = useToast()
+  const toast = useToast()
   const supabase = createClient()
 
-  // Estado do formulário
-  const [formData, setFormData] = useState<ContractFormData>({
-    contract_number: initialData?.contract_number || generateContractNumber(),
-    title: initialData?.title || '',
-    description: initialData?.description || '',
-    supplier: initialData?.supplier || '',
-    value: initialData?.value || 0,
-    start_date: initialData?.start_date || '',
-    end_date: initialData?.end_date || '',
-    notification_days: initialData?.notification_days || [90, 60, 30, 15, 7],
-  })
-
-  // Função de validação
   const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {}
+    const newErrors: Partial<Record<keyof ContractFormData, string>> = {}
 
     if (!formData.title.trim()) newErrors.title = 'Título é obrigatório'
-    if (!formData.contract_number.trim()) newErrors.contract_number = 'Número do contrato é obrigatório'
+    if (!formData.contract_number.trim()) newErrors.contract_number = 'Processo SEI é obrigatório'
     if (!formData.supplier.trim()) newErrors.supplier = 'Fornecedor é obrigatório'
-    if (formData.value <= 0) newErrors.value = 'Valor deve ser positivo'
+    if (formData.value <= 0) newErrors.value = 'Valor deve ser maior que zero'
     if (!formData.start_date) newErrors.start_date = 'Data de início é obrigatória'
     if (!formData.end_date) newErrors.end_date = 'Data de término é obrigatória'
 
@@ -98,34 +91,37 @@ export function ContractForm({
   // Função de submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    if (!validateForm()) {
-      toast.error('Erro de validação', 'Por favor, corrija os campos destacados')
-      return
-    }
+    
+    if (!validateForm()) return
 
     setIsLoading(true)
-
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('Usuário não autenticado. Faça o login para continuar.');
+      // Sincronizar usuário com a tabela users
+      const user = await syncUserWithDatabase()
+      if (!user) {
+        throw new Error('Usuário não autenticado. Faça o login para continuar.')
       }
-      const token = session.access_token;
 
-      const response = await fetch('http://localhost:3001/api/contracts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(formData),
-      });
+      const contractData = {
+        ...formData,
+        created_by: user.id
+      }
 
-      const result = await response.json();
+      const { data, error } = await supabase
+        .from('contracts')
+        .insert([contractData])
+        .select()
+        .single()
 
-      if (!response.ok) {
-        throw new Error(result.message || 'Falha ao criar o contrato.');
+      if (error) {
+        console.error('Erro ao criar contrato:', error)
+        
+        // Tratar erro de conflito (processo SEI duplicado)
+        if (error.code === '23505' || error.message.includes('duplicate')) {
+          throw new Error('Já existe um contrato com este processo SEI. Tente gerar um novo número.')
+        }
+        
+        throw new Error(error.message || 'Falha ao criar o contrato.')
       }
 
       toast.success(
@@ -202,16 +198,32 @@ export function ContractForm({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-3">
-              Número do Contrato *
+              Processo SEI *
             </label>
             <Input
               value={formData.contract_number}
               onChange={(e) => updateField('contract_number', e.target.value)}
-              placeholder="CTR-2025-001"
+              placeholder="Digite o número do processo SEI"
               error={errors.contract_number}
-              disabled={mode === 'edit'}
-              className="text-lg font-mono"
             />
+            {errors.contract_number && (
+              <p className="text-red-500 text-sm mt-1">{errors.contract_number}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-3">
+              Título *
+            </label>
+            <Input
+              value={formData.title}
+              onChange={(e) => updateField('title', e.target.value)}
+              placeholder="Digite o título do contrato"
+              error={errors.title}
+            />
+            {errors.title && (
+              <p className="text-red-500 text-sm mt-1">{errors.title}</p>
+            )}
           </div>
 
           <div>
@@ -221,65 +233,30 @@ export function ContractForm({
             <Input
               value={formData.supplier}
               onChange={(e) => updateField('supplier', e.target.value)}
-              placeholder="Nome do fornecedor"
+              placeholder="Digite o nome do fornecedor"
               error={errors.supplier}
             />
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="block text-sm font-semibold text-gray-700 mb-3">
-              Título do Contrato *
-            </label>
-            <Input
-              value={formData.title}
-              onChange={(e) => updateField('title', e.target.value)}
-              placeholder="Título do contrato"
-              error={errors.title}
-              className="text-lg"
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="block text-sm font-semibold text-gray-700 mb-3">
-              Descrição
-            </label>
-            <Textarea
-              value={formData.description}
-              onChange={(e) => updateField('description', e.target.value)}
-              placeholder="Descrição detalhada do contrato"
-              rows={4}
-              error={errors.description}
-            />
+            {errors.supplier && (
+              <p className="text-red-500 text-sm mt-1">{errors.supplier}</p>
+            )}
           </div>
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-3">
-              Valor (R$) *
+              Valor *
             </label>
             <Input
               type="number"
               step="0.01"
-              value={formData.value}
+              min="0"
+              value={formData.value.toString()}
               onChange={(e) => updateField('value', parseFloat(e.target.value) || 0)}
               placeholder="0,00"
               error={errors.value}
-              className="text-lg font-semibold"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-3">
-              Vigência
-            </label>
-            <select
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              defaultValue="12"
-            >
-              <option value="12">12 meses</option>
-              <option value="24">24 meses</option>
-              <option value="36">36 meses</option>
-              <option value="48">48 meses</option>
-            </select>
+            {errors.value && (
+              <p className="text-red-500 text-sm mt-1">{errors.value}</p>
+            )}
           </div>
 
           <div>
@@ -292,6 +269,9 @@ export function ContractForm({
               onChange={(e) => updateField('start_date', e.target.value)}
               error={errors.start_date}
             />
+            {errors.start_date && (
+              <p className="text-red-500 text-sm mt-1">{errors.start_date}</p>
+            )}
           </div>
 
           <div>
@@ -304,97 +284,72 @@ export function ContractForm({
               onChange={(e) => updateField('end_date', e.target.value)}
               error={errors.end_date}
             />
+            {errors.end_date && (
+              <p className="text-red-500 text-sm mt-1">{errors.end_date}</p>
+            )}
           </div>
         </div>
 
-        {/* Seção de alertas */}
-        <div className="bg-gradient-to-r from-yellow-50 to-orange-50 p-6 rounded-lg border border-yellow-200">
-          <label className="block text-sm font-semibold text-gray-700 mb-4">
-            ⚠️ Alertas de Vencimento
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-3">
+            Descrição
           </label>
-          <p className="text-sm text-gray-600 mb-4">
-            Selecione quantos dias antes do vencimento você deseja receber notificações por e-mail:
-          </p>
-          <div className="flex flex-wrap gap-3">
-            {[90, 60, 30, 15, 7, 1].map((days) => (
-              <label key={days} className="flex items-center space-x-2 bg-white px-4 py-3 rounded-lg border hover:bg-yellow-50 cursor-pointer transition-colors shadow-sm">
+          <Textarea
+            value={formData.description}
+            onChange={(e) => updateField('description', e.target.value)}
+            placeholder="Digite uma descrição detalhada do contrato..."
+            rows={4}
+            error={errors.description}
+          />
+          {errors.description && (
+            <p className="text-red-500 text-sm mt-1">{errors.description}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-3">
+            Dias para Notificação
+          </label>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {[90, 60, 30, 15, 7].map((days) => (
+              <label key={days} className="flex items-center space-x-2">
                 <input
                   type="checkbox"
                   checked={formData.notification_days.includes(days)}
                   onChange={(e) => handleNotificationDaysChange(days, e.target.checked)}
-                  className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
+                  className="rounded border-gray-300 text-primary focus:ring-primary"
                 />
-                <span className="text-sm font-semibold text-gray-700">{days} dias</span>
+                <span className="text-sm text-gray-700">{days} dias</span>
               </label>
             ))}
           </div>
         </div>
 
-        {/* Seção de documentos */}
-        <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
-          <label className="block text-sm font-semibold text-gray-700 mb-4">
-            📎 Documentos
-          </label>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
-            <div className="text-gray-500">
-              <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <p className="text-sm">
-                Arraste arquivos aqui ou{' '}
-                <span className="text-blue-500 hover:text-blue-600 cursor-pointer font-semibold">
-                  clique para selecionar
-                </span>
-              </p>
-              <p className="text-xs text-gray-400 mt-1">
-                PDF, DOC, DOCX até 10MB
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Botões de ação */}
-        <div className="flex justify-end space-x-4 pt-8 border-t-2 border-gray-100">
+        <div className="flex justify-end space-x-4 pt-6 border-t">
           <Button
             type="button"
             variant="ghost"
-            onClick={() => {
-              setFormData({
-                contract_number: generateContractNumber(),
-                title: '',
-                description: '',
-                supplier: '',
-                value: 0,
-                start_date: '',
-                end_date: '',
-                notification_days: [90, 60, 30, 15, 7],
-              })
-              setErrors({})
-              onSuccess?.()
-            }}
+            onClick={() => onSuccess?.()}
             disabled={isLoading}
-            className="px-8 py-3"
           >
             Cancelar
           </Button>
           <Button
             type="submit"
             disabled={isLoading}
-            className="px-8 py-3 text-lg"
+            className="min-w-[120px]"
           >
-            {isLoading ? (
-              <>
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
-                Salvando...
-              </>
-            ) : (
-              <>
-                💾 {mode === 'create' ? 'Criar Contrato' : 'Salvar Alterações'}
-              </>
-            )}
+            {isLoading ? 'Salvando...' : mode === 'create' ? 'Criar Contrato' : 'Atualizar Contrato'}
           </Button>
         </div>
       </form>
     </div>
   )
+}
+
+function generateContractNumber(): string {
+  const year = new Date().getFullYear()
+  const timestamp = Date.now().toString().slice(-6)
+  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0')
+  return `SEI-${year}-${timestamp}-${random}`
 }

@@ -1,6 +1,8 @@
 ﻿'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { syncUserWithDatabase } from '@/lib/supabase/client'
 import { Sidebar } from '@/components/layout/sidebar'
 import { DashboardHeader } from '@/components/dashboard/dashboard-header'
 import { StatsGrid } from '@/components/dashboard/stats-grid'
@@ -10,27 +12,7 @@ import { NotificationCenter } from '@/components/dashboard/notification-center'
 import { ContractForm } from '@/components/forms/contract-form-simple'
 import { BiddingProcessForm } from '@/components/forms/bidding-process-form'
 import { MobilePreview } from '@/components/dashboard/mobile-preview'
-import { createClient } from '@/lib/supabase/client'
-
-// Tipos para os dados, baseados nos arquivos do backend
-interface Contract {
-  id: string;
-  contract_number: string;
-  supplier: string;
-  value: number;
-  end_date: string;
-  status: 'active' | 'expired' | 'cancelled' | 'renewed';
-}
-
-interface BiddingProcess {
-  id: string;
-  process_number: string;
-  title: string;
-  current_status: { name: string; color: string };
-  created_by: { name: string };
-  updated_at: string;
-}
-
+import { Contract, BiddingProcess } from '@/types/shared'
 
 export default function Dashboard() {
   const [showContractForm, setShowContractForm] = useState(false)
@@ -46,39 +28,55 @@ export default function Dashboard() {
     setIsLoading(true)
     setError(null)
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('Usuário não autenticado.');
-      }
-      const token = session.access_token;
+      // Sincronizar usuário com a tabela users
+      await syncUserWithDatabase()
 
       // Fetch contracts
-      const contractsRes = await fetch('http://localhost:3001/api/contracts', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!contractsRes.ok) throw new Error('Falha ao buscar contratos.');
-      const contractsData = await contractsRes.json();
-      setContracts(contractsData.data || []);
+      const { data: contractsData, error: contractsError } = await supabase
+        .from('contracts')
+        .select(`
+          id,
+          contract_number,
+          supplier,
+          value,
+          end_date,
+          status,
+          created_by:users(name, email)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (contractsError) throw new Error('Falha ao buscar contratos.')
+      setContracts(contractsData || [])
 
       // Fetch bidding processes
-      const biddingRes = await fetch('http://localhost:3001/api/bidding', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!biddingRes.ok) throw new Error('Falha ao buscar processos de licitação.');
-      const biddingData = await biddingRes.json();
-      setBiddingProcesses(biddingData.data || []);
+      const { data: biddingData, error: biddingError } = await supabase
+        .from('bidding_processes')
+        .select(`
+          id,
+          process_number,
+          title,
+          current_status:process_statuses(name, color),
+          created_by:users(name),
+          updated_at
+        `)
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (biddingError) throw new Error('Falha ao buscar processos de licitação.')
+      setBiddingProcesses(biddingData || [])
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido.');
-      console.error(err);
+      setError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido.')
+      console.error(err)
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  }, [supabase.auth]);
+  }, [supabase])
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchData()
+  }, [fetchData])
 
   return (
     <div className="flex min-h-screen bg-background">

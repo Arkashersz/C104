@@ -5,7 +5,7 @@ import { z } from 'zod'
 export const contractFormSchema = z.object({
     title: z.string().min(1, 'Título é obrigatório'),
     description: z.string().optional(),
-    contract_number: z.string().min(1, 'Número do contrato é obrigatório'),
+    contract_number: z.string().min(1, 'Processo SEI é obrigatório'),
     supplier: z.string().min(1, 'Fornecedor é obrigatório'),
     value: z.number().positive('Valor deve ser positivo'),
     start_date: z.string().min(1, 'Data de início é obrigatória'),

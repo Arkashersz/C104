@@ -1,11 +1,4 @@
-interface BiddingProcess {
-  id: string;
-  process_number: string;
-  title: string;
-  current_status: { name: string; color: string };
-  created_by: { name: string };
-  updated_at: string;
-}
+import { BiddingProcess } from '@/types/shared'
 
 interface BiddingProcessesTableProps {
   processes: BiddingProcess[];
@@ -75,12 +68,12 @@ export function BiddingProcessesTable({ processes, isLoading }: BiddingProcesses
                     {process.title}
                   </td>
                   <td className="p-4 border-b border-gray-100">
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusClass(process.current_status.color)}`}>
-                      {process.current_status.name}
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusClass(process.current_status?.color || '')}`}>
+                      {process.current_status?.name || 'N/A'}
                     </span>
                   </td>
                   <td className="p-4 border-b border-gray-100">
-                    {process.created_by.name}
+                    {process.created_by?.name || 'N/A'}
                   </td>
                   <td className="p-4 border-b border-gray-100">
                     {new Date(process.updated_at).toLocaleDateString('pt-BR')}
