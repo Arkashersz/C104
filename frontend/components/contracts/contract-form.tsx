@@ -215,7 +215,10 @@ export function ContractForm({
               </label>
               <Select
                 value={contract.status}
-                onValueChange={(value) => setValue('status', value as any)}
+                onValueChange={(value) => {
+                  // Status não é parte do schema de validação, então não usamos setValue
+                  console.log('Status changed to:', value)
+                }}
               >
                 <option value="active">Ativo</option>
                 <option value="expired">Expirado</option>

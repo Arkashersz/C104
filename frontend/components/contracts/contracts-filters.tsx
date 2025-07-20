@@ -12,7 +12,7 @@ interface ContractFiltersProps {
     status?: ContractStatus
     supplier?: string
     search?: string
-    orderBy?: string
+    orderBy?: 'created_at' | 'title' | 'contract_number' | 'supplier' | 'value' | 'start_date' | 'end_date'
     orderDirection?: 'asc' | 'desc'
   }) => void
   onClearFilters: () => void

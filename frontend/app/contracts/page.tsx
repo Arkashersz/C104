@@ -1,225 +1,259 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { SharedLayout } from '@/components/layout/shared-layout'
+import { Sidebar } from '@/components/layout/sidebar'
+import { Button } from '@/components/ui/button'
 import { ContractCard } from '@/components/contracts/contract-card'
 import { ContractsFilters } from '@/components/contracts/contracts-filters'
-import { ContractForm } from '@/components/contracts/contract-form'
-import { Button } from '@/components/ui/button'
-import { useContracts } from '@/lib/hooks/use-contracts'
-import { syncUserWithDatabase } from '@/lib/supabase/client'
+import { ContractForm } from '@/components/forms/contract-form-simple'
+import { Plus, FileText, AlertCircle, ArrowLeft, RefreshCw } from 'lucide-react'
 import { ContractWithRelations, ContractInsert, ContractFilters as ContractFiltersType } from '@/types/contracts'
-import { Plus, FileText, AlertCircle } from 'lucide-react'
+import { useContracts } from '@/lib/hooks/use-contracts'
 
 export default function ContractsPage() {
   const router = useRouter()
-  const { contracts, loading, error, pagination, fetchContracts, createContract, updateContract, deleteContract } = useContracts()
   const [showForm, setShowForm] = useState(false)
   const [editingContract, setEditingContract] = useState<ContractWithRelations | null>(null)
   const [currentFilters, setCurrentFilters] = useState<ContractFiltersType>({
+    search: '',
+    status: undefined,
+    supplier: '',
     orderBy: 'created_at',
-    orderDirection: 'desc'
+    orderDirection: 'desc',
   })
-  const [currentPage, setCurrentPage] = useState(1)
 
-  // Sincronizar usuário e carregar contratos na inicialização
+  const {
+    contracts,
+    loading,
+    error,
+    pagination,
+    fetchContracts,
+    deleteContract
+  } = useContracts()
+
+  // Carregar dados iniciais apenas uma vez
   useEffect(() => {
-    const initializePage = async () => {
+    const loadInitialData = async () => {
       try {
-        // Sincronizar usuário com a tabela users
-        await syncUserWithDatabase()
-        
-        // Carregar contratos
-        await fetchContracts({ page: currentPage, ...currentFilters })
+        await fetchContracts({
+          page: 1,
+          limit: 10,
+          ...currentFilters
+        })
       } catch (err) {
-        console.error('Erro ao inicializar página:', err)
+        console.error('Erro ao carregar dados iniciais:', err)
       }
     }
-
-    initializePage()
+    loadInitialData()
   }, [])
 
-  // Recarregar contratos quando filtros ou página mudarem
-  useEffect(() => {
-    fetchContracts({ page: currentPage, ...currentFilters })
-  }, [currentPage, currentFilters])
+  const handleFiltersChange = useCallback((filters: ContractFiltersType) => {
+    setCurrentFilters({
+      ...currentFilters,
+      ...filters
+    })
+    fetchContracts({
+      page: 1,
+      limit: 10,
+      ...filters
+    })
+  }, [fetchContracts, currentFilters])
 
-  const handleCreateContract = async (data: ContractInsert) => {
-    const result = await createContract(data)
-    if (result) {
-      setShowForm(false)
-      fetchContracts({ page: currentPage, ...currentFilters })
-    }
-  }
+  const handlePageChange = useCallback((page: number) => {
+    fetchContracts({
+      page,
+      limit: 10,
+      ...currentFilters
+    })
+  }, [fetchContracts, currentFilters])
 
-  const handleUpdateContract = async (data: ContractInsert) => {
-    if (editingContract) {
-      const result = await updateContract(editingContract.id, data)
-      if (result) {
-        setShowForm(false)
-        setEditingContract(null)
-        fetchContracts({ page: currentPage, ...currentFilters })
-      }
-    }
-  }
-
-  const handleDeleteContract = async (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este contrato?')) {
-      const result = await deleteContract(id)
-      if (result) {
-        fetchContracts({ page: currentPage, ...currentFilters })
-      }
-    }
-  }
-
-  const handleEditContract = (contract: ContractWithRelations) => {
+  const handleEdit = useCallback((contract: ContractWithRelations) => {
     setEditingContract(contract)
     setShowForm(true)
-  }
+  }, [])
 
-  const handleFiltersChange = (filters: ContractFiltersType) => {
-    setCurrentFilters(filters)
-    setCurrentPage(1)
-  }
+  const handleDelete = useCallback(async (id: string) => {
+    const success = await deleteContract(id)
+    if (success) {
+      fetchContracts({
+        page: pagination.page,
+        limit: 10,
+        ...currentFilters
+      })
+    }
+  }, [deleteContract, fetchContracts, pagination.page, currentFilters])
 
-  const handleClearFilters = () => {
-    setCurrentFilters({
-      orderBy: 'created_at',
-      orderDirection: 'desc'
+  const handleFormSuccess = useCallback(() => {
+    setEditingContract(null)
+    setShowForm(false)
+    fetchContracts({
+      page: pagination.page,
+      limit: 10,
+      ...currentFilters
     })
-    setCurrentPage(1)
-  }
+  }, [fetchContracts, pagination.page, currentFilters])
 
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page)
-  }
+  const handleRefresh = useCallback(() => {
+    fetchContracts({
+      page: pagination.page,
+      limit: 10,
+      ...currentFilters
+    })
+  }, [fetchContracts, pagination.page, currentFilters])
 
   return (
-    <SharedLayout 
-      title="Contratos" 
-      subtitle="Gestão completa de contratos"
-      icon="📄"
-    >
-      <div className="space-y-6">
-        {/* Header com botão de criar */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">
-              Lista de Contratos
-            </h2>
-            <p className="text-gray-600">
-              {pagination.total} contrato{pagination.total !== 1 ? 's' : ''} encontrado{pagination.total !== 1 ? 's' : ''}
-            </p>
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <main className="flex-1 ml-64 p-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Botão Voltar */}
+          <div className="mb-6">
+            <button
+              onClick={() => router.push('/')}
+              className="flex items-center gap-2 text-gray-700 text-base font-normal bg-transparent border-none shadow-none p-0 hover:bg-transparent focus:outline-none"
+              style={{ boxShadow: 'none', border: 'none', background: 'none' }}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Voltar
+            </button>
           </div>
-          
-          <Button onClick={() => setShowForm(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Contrato
-          </Button>
-        </div>
-
-        {/* Filtros */}
-        <ContractsFilters
-          onFiltersChange={handleFiltersChange}
-          onClearFilters={handleClearFilters}
-        />
-
-        {/* Erro */}
-        {error && (
-          <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <AlertCircle className="h-5 w-5 text-red-500" />
-            <span className="text-red-700">{error}</span>
-          </div>
-        )}
-
-        {/* Loading */}
-        {loading && (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
-          </div>
-        )}
-
-        {/* Lista de contratos */}
-        {!loading && contracts.length === 0 && (
-          <div className="text-center py-12">
-            <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Nenhum contrato encontrado
-            </h3>
-            <p className="text-gray-600 mb-4">
-              {Object.keys(currentFilters).length > 0 
-                ? 'Tente ajustar os filtros ou criar um novo contrato.'
-                : 'Comece criando seu primeiro contrato.'
-              }
-            </p>
-            {Object.keys(currentFilters).length === 0 && (
-              <Button onClick={() => setShowForm(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Criar Primeiro Contrato
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Contratos</h1>
+              <p className="text-gray-600 mt-2">
+                Gerencie todos os contratos administrativos da instituição
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                onClick={handleRefresh}
+                disabled={loading}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                Atualizar
               </Button>
-            )}
+              <Button
+                onClick={() => setShowForm(true)}
+                className="flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Novo Contrato
+              </Button>
+            </div>
           </div>
-        )}
-
-        {/* Grid de contratos */}
-        {!loading && contracts.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {contracts.map((contract) => (
-              <ContractCard
-                key={contract.id}
-                contract={contract}
-                onEdit={handleEditContract}
-                onDelete={handleDeleteContract}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Paginação */}
-        {!loading && pagination.totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-8">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-            >
-              Anterior
-            </Button>
-            
-            <span className="text-sm text-gray-600">
-              Página {currentPage} de {pagination.totalPages}
-            </span>
-            
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === pagination.totalPages}
-            >
-              Próxima
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* Modal do formulário */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+          {/* Filtros */}
+          <ContractsFilters
+            onFiltersChange={handleFiltersChange}
+            currentFilters={currentFilters}
+            onClearFilters={() => handleFiltersChange({})}
+          />
+          {/* Erro */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Erro:</span>
+                <span>{error}</span>
+              </div>
+              <button 
+                onClick={handleRefresh}
+                className="text-sm underline mt-1 hover:no-underline"
+              >
+                Tentar novamente
+              </button>
+            </div>
+          )}
+          {/* Lista de Contratos */}
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="flex items-center gap-2">
+                <RefreshCw className="h-6 w-6 animate-spin" />
+                <span className="text-gray-600">Carregando contratos...</span>
+              </div>
+            </div>
+          ) : contracts.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="mx-auto h-12 w-12 text-gray-400">
+                <FileText className="h-12 w-12" />
+              </div>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhum contrato encontrado</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                {currentFilters.search || currentFilters.status || currentFilters.supplier
+                  ? 'Tente ajustar os filtros de busca.'
+                  : 'Comece criando um novo contrato.'
+                }
+              </p>
+              {!currentFilters.search && !currentFilters.status && !currentFilters.supplier && (
+                <div className="mt-6">
+                  <Button onClick={() => setShowForm(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Criar Primeiro Contrato
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Grid de Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                {contracts.map((contract) => (
+                  <ContractCard
+                    key={contract.id}
+                    contract={contract}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </div>
+              {/* Paginação */}
+              {pagination.totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-8">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handlePageChange(pagination.page - 1)}
+                    disabled={pagination.page === 1}
+                  >
+                    Anterior
+                  </Button>
+                  <span className="text-sm text-gray-600">
+                    Página {pagination.page} de {pagination.totalPages}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handlePageChange(pagination.page + 1)}
+                    disabled={pagination.page === pagination.totalPages}
+                  >
+                    Próxima
+                  </Button>
+                </div>
+              )}
+              {/* Informações de paginação */}
+              <div className="text-center text-sm text-gray-500 mt-4">
+                Mostrando {((pagination.page - 1) * pagination.limit) + 1} a{' '}
+                {Math.min(pagination.page * pagination.limit, pagination.total)} de{' '}
+                {pagination.total} contratos
+              </div>
+            </>
+          )}
+          {/* Modal de Formulário */}
+          {showForm && (
             <ContractForm
-              contract={editingContract || undefined}
-              onSubmit={editingContract ? handleUpdateContract : handleCreateContract}
+              contract={editingContract}
+              isOpen={showForm}
               onCancel={() => {
                 setShowForm(false)
                 setEditingContract(null)
               }}
-              loading={loading}
+              onSuccess={handleFormSuccess}
             />
-          </div>
+          )}
         </div>
-      )}
-    </SharedLayout>
+      </main>
+    </div>
   )
 }

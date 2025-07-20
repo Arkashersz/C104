@@ -10,7 +10,7 @@ import { ContractsTable } from '@/components/dashboard/contracts-table'
 import { BiddingProcessesTable } from '@/components/dashboard/bidding-processes-table'
 import { NotificationCenter } from '@/components/dashboard/notification-center'
 import { ContractForm } from '@/components/forms/contract-form-simple'
-import { BiddingProcessForm } from '@/components/forms/bidding-process-form'
+import { BiddingForm } from '@/components/bidding/bidding-form'
 import { MobilePreview } from '@/components/dashboard/mobile-preview'
 import { Contract, BiddingProcess } from '@/types/shared'
 
@@ -111,15 +111,16 @@ export default function Dashboard() {
         )}
 
         {showBiddingForm && (
-          <div className="mt-8">
-            <BiddingProcessForm
-              onSuccess={() => {
-                setShowBiddingForm(false)
-                fetchData() // Recarrega os dados
-                alert('✅ Processo licitatório criado com sucesso!')
-              }}
-            />
-          </div>
+          <BiddingForm
+            bidding={null}
+            isOpen={showBiddingForm}
+            onClose={() => setShowBiddingForm(false)}
+            onSuccess={() => {
+              setShowBiddingForm(false)
+              fetchData() // Recarrega os dados
+              alert('✅ Processo licitatório criado com sucesso!')
+            }}
+          />
         )}
 
         <MobilePreview />
