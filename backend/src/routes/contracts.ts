@@ -202,7 +202,7 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
       })
     }
   }
-
+  
   const { data, error } = await supabase
     .from('contracts')
     .update({

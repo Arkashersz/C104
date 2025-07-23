@@ -49,27 +49,32 @@ export function BiddingForm({ bidding, isOpen, onClose, onSuccess }: BiddingForm
     loadStatuses()
   }, [fetchStatuses])
 
+  // Reset do formulário quando o modal abre
   useEffect(() => {
-    if (bidding) {
-      reset({
-        title: bidding.title || '',
-        description: bidding.description || '',
-        process_number: bidding.process_number || '',
-        estimated_value: bidding.estimated_value || undefined,
-        opening_date: bidding.opening_date ? new Date(bidding.opening_date).toISOString().split('T')[0] : '',
-        current_status_id: bidding.current_status_id || ''
-      })
-    } else {
-      reset({
-        title: '',
-        description: '',
-        process_number: '',
-        estimated_value: undefined,
-        opening_date: '',
-        current_status_id: ''
-      })
+    if (isOpen) {
+      if (bidding) {
+        // Se está editando, preenche com os dados do processo
+        reset({
+          title: bidding.title || '',
+          description: bidding.description || '',
+          process_number: bidding.process_number || '',
+          estimated_value: bidding.estimated_value || undefined,
+          opening_date: bidding.opening_date ? new Date(bidding.opening_date).toISOString().split('T')[0] : '',
+          current_status_id: bidding.current_status_id || ''
+        })
+      } else {
+        // Se está criando, limpa todos os campos
+        reset({
+          title: '',
+          description: '',
+          process_number: '',
+          estimated_value: undefined,
+          opening_date: '',
+          current_status_id: ''
+        })
+      }
     }
-  }, [bidding, reset])
+  }, [isOpen, bidding, reset])
 
   const onSubmit = async (data: BiddingFormData) => {
     setLoading(true)
@@ -104,12 +109,33 @@ export function BiddingForm({ bidding, isOpen, onClose, onSuccess }: BiddingForm
   }
 
   const handleCancel = () => {
-    reset()
+    // Reset explícito para valores vazios
+    reset({
+      title: '',
+      description: '',
+      process_number: '',
+      estimated_value: undefined,
+      opening_date: '',
+      current_status_id: ''
+    })
     onClose()
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) {
+        // Reset explícito quando o modal é fechado
+        reset({
+          title: '',
+          description: '',
+          process_number: '',
+          estimated_value: undefined,
+          opening_date: '',
+          current_status_id: ''
+        })
+      }
+      onClose()
+    }}>
       <div className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-lg shadow-lg p-6">
         <div className="mb-6">
           <h2 className="text-xl font-semibold">

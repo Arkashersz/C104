@@ -149,7 +149,10 @@ export default function BiddingPage() {
               </Button>
               
               <Button
-                onClick={() => setShowForm(true)}
+                onClick={() => {
+                  setEditingBidding(null)
+                  setShowForm(true)
+                }}
                 className="flex items-center gap-2"
               >
                 <Plus className="h-4 w-4" />
@@ -202,7 +205,10 @@ export default function BiddingPage() {
               </p>
               {!currentFilters.search && !currentFilters.status && (
                 <div className="mt-6">
-                  <Button onClick={() => setShowForm(true)}>
+                  <Button onClick={() => {
+                    setEditingBidding(null)
+                    setShowForm(true)
+                  }}>
                     <Plus className="h-4 w-4 mr-2" />
                     Criar Primeiro Processo
                   </Button>

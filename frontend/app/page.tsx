@@ -18,21 +18,26 @@ export default function Dashboard() {
   const [showContractForm, setShowContractForm] = useState(false)
   const [showBiddingForm, setShowBiddingForm] = useState(false)
   const [contracts, setContracts] = useState<Contract[]>([])
+  const [contractsTotal, setContractsTotal] = useState(0)
+  const [contractsPage, setContractsPage] = useState(1)
   const [biddingProcesses, setBiddingProcesses] = useState<BiddingProcess[]>([])
+  const [biddingTotal, setBiddingTotal] = useState(0)
+  const [biddingPage, setBiddingPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const PAGE_SIZE = 5
   const supabase = createClient()
 
-  const fetchData = useCallback(async () => {
+  // Função para buscar contratos
+  const fetchContractsPage = useCallback(async (page = contractsPage) => {
     setIsLoading(true)
     setError(null)
     try {
-      // Sincronizar usuário com a tabela users
       await syncUserWithDatabase()
-
-      // Fetch contracts
-      const { data: contractsData, error: contractsError } = await supabase
+      const contractsFrom = (page - 1) * PAGE_SIZE
+      const contractsTo = contractsFrom + PAGE_SIZE - 1
+      const { data: contractsData, error: contractsError, count: contractsCount } = await supabase
         .from('contracts')
         .select(`
           id,
@@ -42,15 +47,29 @@ export default function Dashboard() {
           end_date,
           status,
           created_by:users(name, email)
-        `)
+        `, { count: 'exact' })
         .order('created_at', { ascending: false })
-        .limit(5)
-
+        .range(contractsFrom, contractsTo)
       if (contractsError) throw new Error('Falha ao buscar contratos.')
       setContracts(contractsData || [])
+      setContractsTotal(contractsCount || 0)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido.')
+      console.error(err)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [supabase, contractsPage])
 
-      // Fetch bidding processes
-      const { data: biddingData, error: biddingError } = await supabase
+  // Função para buscar licitações
+  const fetchBiddingPage = useCallback(async (page = biddingPage) => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      await syncUserWithDatabase()
+      const biddingFrom = (page - 1) * PAGE_SIZE
+      const biddingTo = biddingFrom + PAGE_SIZE - 1
+      const { data: biddingData, error: biddingError, count: biddingCount } = await supabase
         .from('bidding_processes')
         .select(`
           id,
@@ -59,24 +78,39 @@ export default function Dashboard() {
           current_status:process_statuses(name, color),
           created_by:users(name),
           updated_at
-        `)
+        `, { count: 'exact' })
         .order('created_at', { ascending: false })
-        .limit(5)
-
+        .range(biddingFrom, biddingTo)
       if (biddingError) throw new Error('Falha ao buscar processos de licitação.')
       setBiddingProcesses(biddingData || [])
-
+      setBiddingTotal(biddingCount || 0)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido.')
       console.error(err)
     } finally {
       setIsLoading(false)
     }
-  }, [supabase])
+  }, [supabase, biddingPage])
 
   useEffect(() => {
-    fetchData()
-  }, [fetchData])
+    fetchContractsPage(contractsPage)
+    fetchBiddingPage(biddingPage)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Paginação contratos
+  const contractsTotalPages = Math.ceil(contractsTotal / PAGE_SIZE)
+  const handleContractsPageChange = (newPage: number) => {
+    setContractsPage(newPage)
+    fetchContractsPage(newPage)
+  }
+
+  // Paginação licitações
+  const biddingTotalPages = Math.ceil(biddingTotal / PAGE_SIZE)
+  const handleBiddingPageChange = (newPage: number) => {
+    setBiddingPage(newPage)
+    fetchBiddingPage(newPage)
+  }
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -93,8 +127,44 @@ export default function Dashboard() {
         {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{error}</div>}
 
         <ContractsTable contracts={contracts} isLoading={isLoading} />
+        {/* Paginação contratos */}
+        {contractsTotalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-2 mb-8">
+            <button
+              className="px-3 py-1 rounded border text-sm"
+              onClick={() => handleContractsPageChange(contractsPage - 1)}
+              disabled={contractsPage === 1}
+            >Anterior</button>
+            <span className="text-sm text-gray-600">
+              Página {contractsPage} de {contractsTotalPages}
+            </span>
+            <button
+              className="px-3 py-1 rounded border text-sm"
+              onClick={() => handleContractsPageChange(contractsPage + 1)}
+              disabled={contractsPage === contractsTotalPages}
+            >Próxima</button>
+          </div>
+        )}
 
         <BiddingProcessesTable processes={biddingProcesses} isLoading={isLoading} />
+        {/* Paginação licitações */}
+        {biddingTotalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-2 mb-8">
+            <button
+              className="px-3 py-1 rounded border text-sm"
+              onClick={() => handleBiddingPageChange(biddingPage - 1)}
+              disabled={biddingPage === 1}
+            >Anterior</button>
+            <span className="text-sm text-gray-600">
+              Página {biddingPage} de {biddingTotalPages}
+            </span>
+            <button
+              className="px-3 py-1 rounded border text-sm"
+              onClick={() => handleBiddingPageChange(biddingPage + 1)}
+              disabled={biddingPage === biddingTotalPages}
+            >Próxima</button>
+          </div>
+        )}
 
         <NotificationCenter />
 
@@ -103,7 +173,7 @@ export default function Dashboard() {
             <ContractForm
               onSuccess={() => {
                 setShowContractForm(false)
-                fetchData() // Recarrega os dados
+                fetchContractsPage() // Recarrega os dados
                 alert('✅ Contrato criado com sucesso!')
               }}
             />
@@ -117,7 +187,7 @@ export default function Dashboard() {
             onClose={() => setShowBiddingForm(false)}
             onSuccess={() => {
               setShowBiddingForm(false)
-              fetchData() // Recarrega os dados
+              fetchBiddingPage() // Recarrega os dados
               alert('✅ Processo licitatório criado com sucesso!')
             }}
           />

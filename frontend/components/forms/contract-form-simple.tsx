@@ -13,12 +13,12 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 }
 
 const Textarea = ({ className, error, ...props }: TextareaProps) => (
-  <textarea
+    <textarea
     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
       error ? 'border-red-500' : 'border-gray-300'
     } ${className}`}
-    {...props}
-  />
+      {...props}
+    />
 )
 
 // Hook de toast inline
@@ -48,6 +48,7 @@ interface ContractFormData {
 
 interface ContractFormProps {
   onSuccess?: () => void
+  onCancel?: () => void
   initialData?: Partial<ContractFormData>
   mode?: 'create' | 'edit'
   contractId?: string
@@ -55,6 +56,7 @@ interface ContractFormProps {
 
 export function ContractForm({
   onSuccess,
+  onCancel,
   initialData,
   mode = 'create',
 }: ContractFormProps) {
@@ -91,7 +93,7 @@ export function ContractForm({
   // Função de submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!validateForm()) return
 
     setIsLoading(true)
@@ -329,7 +331,7 @@ export function ContractForm({
           <Button
             type="button"
             variant="ghost"
-            onClick={() => onSuccess?.()}
+            onClick={() => onCancel?.()}
             disabled={isLoading}
           >
             Cancelar

@@ -10,6 +10,7 @@ import { ContractForm } from '@/components/forms/contract-form-simple'
 import { Plus, FileText, AlertCircle, ArrowLeft, RefreshCw } from 'lucide-react'
 import { ContractWithRelations, ContractInsert, ContractFilters as ContractFiltersType } from '@/types/contracts'
 import { useContracts } from '@/lib/hooks/use-contracts'
+import { Dialog } from '@/components/ui/dialog'
 
 export default function ContractsPage() {
   const router = useRouter()
@@ -241,17 +242,20 @@ export default function ContractsPage() {
             </>
           )}
           {/* Modal de Formulário */}
-          {showForm && (
+          <Dialog open={showForm} onOpenChange={(open) => {
+            setShowForm(open)
+            if (!open) setEditingContract(null)
+          }}>
             <ContractForm
-              contract={editingContract}
-              isOpen={showForm}
+              initialData={editingContract || undefined}
+              mode={editingContract ? 'edit' : 'create'}
+              onSuccess={handleFormSuccess}
               onCancel={() => {
                 setShowForm(false)
                 setEditingContract(null)
               }}
-              onSuccess={handleFormSuccess}
             />
-          )}
+          </Dialog>
         </div>
       </main>
     </div>
