@@ -271,13 +271,22 @@ export function useContracts() {
         .eq('status', 'active')
         .lte('end_date', targetDate.toISOString().split('T')[0])
 
+      // Valor total contratado (somando todos os contratos ativos)
+      const { data: activeContracts } = await supabase
+        .from('contracts')
+        .select('value')
+        .eq('status', 'active')
+      
+      const totalValue = activeContracts?.reduce((sum, contract) => sum + (contract.value || 0), 0) || 0
+
       return {
         total: total || 0,
         active: active || 0,
         expired: expired || 0,
         cancelled: cancelled || 0,
         renewed: renewed || 0,
-        expiringSoon: expiringSoon || 0
+        expiringSoon: expiringSoon || 0,
+        totalValue: totalValue
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao buscar estatísticas')

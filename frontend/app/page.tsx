@@ -13,6 +13,10 @@ import { ContractForm } from '@/components/forms/contract-form-simple'
 import { BiddingForm } from '@/components/bidding/bidding-form'
 import { MobilePreview } from '@/components/dashboard/mobile-preview'
 import { Contract, BiddingProcess } from '@/types/shared'
+import { ContractStats } from '@/types/contracts'
+import { BiddingStats } from '@/types/bidding'
+import { useContracts } from '@/lib/hooks/use-contracts'
+import { useBidding } from '@/lib/hooks/use-bidding'
 
 export default function Dashboard() {
   const [showContractForm, setShowContractForm] = useState(false)
@@ -23,11 +27,32 @@ export default function Dashboard() {
   const [biddingProcesses, setBiddingProcesses] = useState<BiddingProcess[]>([])
   const [biddingTotal, setBiddingTotal] = useState(0)
   const [biddingPage, setBiddingPage] = useState(1)
+  const [contractStats, setContractStats] = useState<ContractStats | null>(null)
+  const [biddingStats, setBiddingStats] = useState<BiddingStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const PAGE_SIZE = 5
   const supabase = createClient()
+
+  // Usar os hooks para acessar as funções de estatísticas
+  const { fetchStats: fetchContractStats } = useContracts()
+  const { fetchStats: fetchBiddingStats } = useBidding()
+
+  // Função para buscar estatísticas
+  const fetchStats = useCallback(async () => {
+    try {
+      // Buscar estatísticas de contratos
+      const contractStatsData = await fetchContractStats()
+      setContractStats(contractStatsData)
+
+      // Buscar estatísticas de licitações
+      const biddingStatsData = await fetchBiddingStats()
+      setBiddingStats(biddingStatsData)
+    } catch (err) {
+      console.error('Erro ao buscar estatísticas:', err)
+    }
+  }, [fetchContractStats, fetchBiddingStats])
 
   // Função para buscar contratos
   const fetchContractsPage = useCallback(async (page = contractsPage) => {
@@ -93,8 +118,21 @@ export default function Dashboard() {
   }, [supabase, biddingPage])
 
   useEffect(() => {
-    fetchContractsPage(contractsPage)
-    fetchBiddingPage(biddingPage)
+    const loadInitialData = async () => {
+      setIsLoading(true)
+      try {
+        await Promise.all([
+          fetchContractsPage(contractsPage),
+          fetchBiddingPage(biddingPage),
+          fetchStats()
+        ])
+      } catch (err) {
+        console.error('Erro ao carregar dados iniciais:', err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    loadInitialData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -122,7 +160,11 @@ export default function Dashboard() {
           onNewBidding={() => setShowBiddingForm(true)}
         />
 
-        <StatsGrid />
+        <StatsGrid 
+          contractStats={contractStats}
+          biddingStats={biddingStats}
+          loading={isLoading}
+        />
 
         {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">{error}</div>}
 
@@ -174,6 +216,7 @@ export default function Dashboard() {
               onSuccess={() => {
                 setShowContractForm(false)
                 fetchContractsPage() // Recarrega os dados
+                fetchStats() // Recarrega as estatísticas
                 alert('✅ Contrato criado com sucesso!')
               }}
             />
@@ -188,6 +231,7 @@ export default function Dashboard() {
             onSuccess={() => {
               setShowBiddingForm(false)
               fetchBiddingPage() // Recarrega os dados
+              fetchStats() // Recarrega as estatísticas
               alert('✅ Processo licitatório criado com sucesso!')
             }}
           />

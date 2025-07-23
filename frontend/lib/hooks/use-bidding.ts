@@ -45,7 +45,22 @@ export function useBidding() {
 
       // Aplicar filtros
       if (filters.status) {
-        query = query.eq('current_status_id', filters.status)
+        // Buscar o UUID do status pelo nome
+        const { data: statusData } = await supabase
+          .from('process_statuses')
+          .select('id')
+          .eq('name', filters.status)
+          .single()
+        const statusId = statusData?.id
+        if (statusId) {
+          query = query.eq('current_status_id', statusId)
+        } else {
+          // Se não encontrou o status, retorna vazio
+          setBiddingProcesses([])
+          setPagination({ page: 1, limit: 10, total: 0, totalPages: 0 })
+          setLoading(false)
+          return
+        }
       }
 
       if (filters.search) {
@@ -233,37 +248,43 @@ export function useBidding() {
   // Buscar estatísticas
   const fetchStats = useCallback(async (): Promise<BiddingStats | null> => {
     try {
+      // Buscar todos os status e mapear nome -> id
+      const { data: statuses } = await supabase
+        .from('process_statuses')
+        .select('id, name')
+      const getStatusId = (name: string) => statuses?.find(s => s.name === name)?.id
+
       // Total de processos
       const { count: total } = await supabase
         .from('bidding_processes')
         .select('*', { count: 'exact', head: true })
 
       // Processos por status
-      const { count: draft } = await supabase
+      const { count: draft } = getStatusId('draft') ? await supabase
         .from('bidding_processes')
         .select('*', { count: 'exact', head: true })
-        .eq('current_status_id', 'draft')
+        .eq('current_status_id', getStatusId('draft')) : { count: 0 }
 
-      const { count: approval } = await supabase
+      const { count: approval } = getStatusId('approval') ? await supabase
         .from('bidding_processes')
         .select('*', { count: 'exact', head: true })
-        .eq('current_status_id', 'approval')
+        .eq('current_status_id', getStatusId('approval')) : { count: 0 }
 
-      const { count: published } = await supabase
+      const { count: published } = getStatusId('published') ? await supabase
         .from('bidding_processes')
         .select('*', { count: 'exact', head: true })
-        .eq('current_status_id', 'published')
+        .eq('current_status_id', getStatusId('published')) : { count: 0 }
 
-      const { count: closed } = await supabase
+      const { count: closed } = getStatusId('closed') ? await supabase
         .from('bidding_processes')
         .select('*', { count: 'exact', head: true })
-        .eq('current_status_id', 'closed')
+        .eq('current_status_id', getStatusId('closed')) : { count: 0 }
 
       // Processos ativos (não fechados)
-      const { count: active } = await supabase
+      const { count: active } = getStatusId('closed') ? await supabase
         .from('bidding_processes')
         .select('*', { count: 'exact', head: true })
-        .neq('current_status_id', 'closed')
+        .neq('current_status_id', getStatusId('closed')) : { count: 0 }
 
       return {
         total: total || 0,

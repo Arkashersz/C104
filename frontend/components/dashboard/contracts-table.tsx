@@ -1,4 +1,15 @@
 import {formatCurrency, formatDate} from '@/lib/utils';
+import { useState } from 'react'
+
+const getStatusLabel = (status: string) => {
+  const labels = {
+    active: 'Ativo',
+    expired: 'Vencido',
+    cancelled: 'Cancelado',
+    renewed: 'Renovado'
+  };
+  return labels[status as keyof typeof labels] || 'Desconhecido';
+};
 
 interface Contract {
   id: string;
@@ -14,6 +25,29 @@ interface ContractsTableProps {
     isLoading: boolean;
 }
 
+interface ContractPreviewProps {
+  contract: Contract | null
+  onClose: () => void
+}
+
+function ContractPreview({ contract, onClose }: ContractPreviewProps) {
+  if (!contract) return null
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md relative">
+        <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-700" onClick={onClose}>✖</button>
+        <h2 className="text-xl font-bold mb-4">Visualizar Contrato</h2>
+        <div className="mb-2"><strong>Processo SEI:</strong> {contract.contract_number}</div>
+        <div className="mb-2"><strong>Fornecedor:</strong> {contract.supplier}</div>
+        <div className="mb-2"><strong>Valor:</strong> {formatCurrency(contract.value)}</div>
+        <div className="mb-2"><strong>Vencimento:</strong> {formatDate(contract.end_date)}</div>
+        <div className="mb-2"><strong>Status:</strong> {getStatusLabel(contract.status)}</div>
+        {/* Adicione mais campos se necessário */}
+      </div>
+    </div>
+  )
+}
+
 export function ContractsTable({ contracts, isLoading }: ContractsTableProps) {
     const getStatusClass = (status: string) => {
       const classes = {
@@ -26,15 +60,7 @@ export function ContractsTable({ contracts, isLoading }: ContractsTableProps) {
       return classes[status as keyof typeof classes] || classes.active
     }
     
-    const getStatusLabel = (status: string) => {
-        const labels = {
-            active: 'Ativo',
-            expired: 'Vencido',
-            cancelled: 'Cancelado',
-            renewed: 'Renovado'
-        };
-        return labels[status as keyof typeof labels] || 'Desconhecido';
-    }
+    const [previewContract, setPreviewContract] = useState<Contract | null>(null)
 
     return (
       <div className="table-container mb-8">
@@ -103,8 +129,8 @@ export function ContractsTable({ contracts, isLoading }: ContractsTableProps) {
                         </span>
                     </td>
                     <td className="p-4 border-b border-gray-100">
-                        <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 transition-colors">
-                        ✏️ Editar
+                        <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 transition-colors" onClick={() => setPreviewContract(contract)}>
+                        👁️ Visualizar
                         </button>
                     </td>
                     </tr>
@@ -113,6 +139,9 @@ export function ContractsTable({ contracts, isLoading }: ContractsTableProps) {
             </tbody>
           </table>
         </div>
+        {previewContract && (
+          <ContractPreview contract={previewContract} onClose={() => setPreviewContract(null)} />
+        )}
       </div>
     )
   }

@@ -50,4 +50,5 @@ export interface ContractStats {
   cancelled: number
   renewed: number
   expiringSoon: number
+  totalValue: number
 }

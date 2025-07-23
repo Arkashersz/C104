@@ -18,18 +18,7 @@ interface DashboardHeaderProps {
           <button className="btn-secondary flex items-center gap-2">
             📊 Relatório
           </button>
-          <button 
-            className="btn-primary flex items-center gap-2"
-            onClick={onNewContract}
-          >
-            ➕ Novo Contrato
-          </button>
-          <button 
-            className="btn-primary flex items-center gap-2"
-            onClick={onNewBidding}
-          >
-            ⚖️ Nova Licitação
-          </button>
+          {/* Removido: Botões de novo contrato e nova licitação */}
         </div>
       </div>
     )
