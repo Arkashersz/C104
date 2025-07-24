@@ -1,8 +1,32 @@
 import { BiddingProcess } from '@/types/shared'
+import { useState } from 'react'
 
 interface BiddingProcessesTableProps {
   processes: BiddingProcess[];
   isLoading: boolean;
+}
+
+interface BiddingPreviewProps {
+  process: BiddingProcess | null
+  onClose: () => void
+}
+
+function BiddingPreview({ process, onClose }: BiddingPreviewProps) {
+  if (!process) return null
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md relative">
+        <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-700" onClick={onClose}>✖</button>
+        <h2 className="text-xl font-bold mb-4">Visualizar Processo Licitatório</h2>
+        <div className="mb-2"><strong>Nº Processo:</strong> {process.process_number}</div>
+        <div className="mb-2"><strong>Objeto:</strong> {process.title}</div>
+        <div className="mb-2"><strong>Status Atual:</strong> {process.current_status?.name || 'N/A'}</div>
+        <div className="mb-2"><strong>Responsável:</strong> {process.created_by?.name || 'N/A'}</div>
+        <div className="mb-2"><strong>Última Atualização:</strong> {new Date(process.updated_at).toLocaleDateString('pt-BR')}</div>
+        {/* Adicione mais campos se necessário */}
+      </div>
+    </div>
+  )
 }
 
 export function BiddingProcessesTable({ processes, isLoading }: BiddingProcessesTableProps) {
@@ -16,6 +40,8 @@ export function BiddingProcessesTable({ processes, isLoading }: BiddingProcesses
     };
     return colorMap[color] || 'bg-gray-50 text-gray-700';
   };
+
+  const [previewProcess, setPreviewProcess] = useState<BiddingProcess | null>(null)
 
   return (
     <div className="table-container mb-8">
@@ -79,8 +105,8 @@ export function BiddingProcessesTable({ processes, isLoading }: BiddingProcesses
                     {new Date(process.updated_at).toLocaleDateString('pt-BR')}
                   </td>
                   <td className="p-4 border-b border-gray-100">
-                    <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 transition-colors">
-                      👁️ Acompanhar
+                    <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 transition-colors" onClick={() => setPreviewProcess(process)}>
+                      👁️ Visualizar
                     </button>
                   </td>
                 </tr>
@@ -89,6 +115,9 @@ export function BiddingProcessesTable({ processes, isLoading }: BiddingProcesses
           </tbody>
         </table>
       </div>
+      {previewProcess && (
+        <BiddingPreview process={previewProcess} onClose={() => setPreviewProcess(null)} />
+      )}
     </div>
   )
 }
