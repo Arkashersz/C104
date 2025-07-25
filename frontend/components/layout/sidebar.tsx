@@ -86,11 +86,9 @@ function UserProfile() {
 export function Sidebar() {
   const navItems = [
     { href: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
-    { href: '/contracts', icon: <FileText size={20} />, label: 'Contratos' },
-    { href: '/bidding', icon: <Gavel size={20} />, label: 'Licitações' },
+    { href: '/processos', icon: <FileText size={20} />, label: 'Processos' },
+    { href: '/grupos', icon: <Users size={20} />, label: 'Grupos' },
     { href: '/notifications', icon: <Bell size={20} />, label: 'Notificações' },
-    { href: '/reports', icon: <BarChart2 size={20} />, label: 'Relatórios' },
-    { href: '/users', icon: <Users size={20} />, label: 'Usuários' },
     { href: '/settings', icon: <Settings size={20} />, label: 'Configurações' },
   ]
 

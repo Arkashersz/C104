@@ -96,7 +96,7 @@ class EmailService {
   }
 
   async sendProcessReminderNotification(data: ProcessReminderData) {
-    const subject = `📋 Processo ${data.processNumber} aguarda sua ação há ${data.daysWaiting} dias`
+    const subject = `🔔 Processo ${data.processNumber} aguarda sua ação (${data.daysWaiting} dias)`
     
     const html = `
       <!DOCTYPE html>
@@ -110,21 +110,19 @@ class EmailService {
           .content { background: #ffffff; padding: 30px; border: 1px solid #e2e8f0; }
           .footer { background: #fafafa; padding: 15px; border-radius: 0 0 8px 8px; text-align: center; font-size: 12px; color: #536d88; }
           .urgent { background: #fee2e2; border: 1px solid #fecaca; padding: 15px; border-radius: 6px; margin: 20px 0; }
-          .button { background: #b49b85; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 20px 0; }
+          .button { background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 20px 0; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h2>⚖️ Sistema de Licitações</h2>
+            <h2>🔔 Sistema de Processos SEI</h2>
           </div>
           <div class="content">
             <h3>Olá, ${data.recipientName}!</h3>
-            
             <div class="urgent">
-              <strong>🔴 Ação Necessária:</strong> Existe um processo aguardando sua ação!
+              <strong>⚠️ Atenção:</strong> Você foi definido como responsável pelo processo abaixo e ele aguarda sua ação!
             </div>
-            
             <h4>Detalhes do Processo:</h4>
             <ul>
               <li><strong>Número:</strong> ${data.processNumber}</li>
@@ -132,14 +130,12 @@ class EmailService {
               <li><strong>Status Atual:</strong> ${data.statusName}</li>
               <li><strong>Aguardando há:</strong> ${data.daysWaiting} dias</li>
             </ul>
-            
             <p>Por favor, acesse o sistema e tome as providências necessárias para dar continuidade ao processo.</p>
-            
-            <a href="${config.APP_URL}/bidding" class="button">Acessar Processo</a>
+            <a href="${config.APP_URL}/processos" class="button">Acessar Processo</a>
           </div>
           <div class="footer">
             <p>Este é um e-mail automático. Não responda a esta mensagem.</p>
-            <p>Sistema de Gestão de Contratos - ${new Date().getFullYear()}</p>
+            <p>Sistema de Processos SEI - ${new Date().getFullYear()}</p>
           </div>
         </div>
       </body>

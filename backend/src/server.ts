@@ -11,6 +11,7 @@ import { authMiddleware } from './middleware/auth'
 
 // Routes
 import contractsRouter from './routes/contracts'
+import seiProcessesRouter from './routes/sei-processes'
 
 const app = express()
 
@@ -43,6 +44,7 @@ app.get('/health', (req, res) => {
 
 // API Routes (com autenticação)
 app.use('/api/contracts', authMiddleware, contractsRouter)
+app.use('/api/sei-processes', authMiddleware, seiProcessesRouter)
 
 // Rotas simples para outros módulos
 app.use('/api/bidding', authMiddleware, (req, res) => {

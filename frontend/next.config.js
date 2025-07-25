@@ -6,6 +6,14 @@ const nextConfig = {
   images: {
     domains: ['https://dzyrmbvacyfnkqsuoula.supabase.co'],
   },
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://localhost:3001/api/:path*',
+      },
+    ]
+  },
 }
 
 module.exports = nextConfig

@@ -6,53 +6,50 @@ import { logger } from '../utils/logger'
 
 // Executa diariamente às 9h
 cron.schedule('0 9 * * *', async () => {
-  logger.info('🔔 Iniciando verificação de contratos próximos ao vencimento')
-  
+  logger.info('🔔 Iniciando verificação de processos para lembretes diários')
+
   try {
-    // Buscar contratos que precisam de notificação
     const today = new Date()
-    const { data: contracts, error } = await supabase
-      .from('contracts')
+    const todayStr = today.toISOString().slice(0, 10)
+
+    // Buscar processos que precisam de notificação
+    const { data: processes, error } = await supabase
+      .from('sei_processes')
       .select(`
         *,
-        created_by:users(email, name)
+        responsible:users!responsible_id(email, name)
       `)
-      .eq('status', 'active')
+      .not('responsible_id', 'is', null)
 
     if (error) throw error
 
-    for (const contract of contracts || []) {
-      const endDate = new Date(contract.end_date)
-      const daysUntilExpiry = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-      
-      // Verificar se deve enviar notificação
-      if (contract.notification_days?.includes(daysUntilExpiry)) {
-        await emailService.sendContractExpiryNotification({
-          to: contract.created_by.email,
-          contractNumber: contract.contract_number,
-          contractTitle: contract.title,
-          supplier: contract.supplier,
-          expiryDate: contract.end_date,
-          daysUntilExpiry,
-          recipientName: contract.created_by.name,
+    for (const process of processes || []) {
+      // Verifica se há datas relevantes e notification_days
+      const notificationDays = process.notification_days || [1]
+      let targetDate = null
+      let daysUntilTarget = null
+      if (process.end_date) {
+        const endDate = new Date(process.end_date)
+        daysUntilTarget = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+        targetDate = endDate
+      } else if (process.opening_date) {
+        const openingDate = new Date(process.opening_date)
+        daysUntilTarget = Math.ceil((openingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+        targetDate = openingDate
+      }
+      if (targetDate && notificationDays.includes(daysUntilTarget)) {
+        await emailService.sendProcessReminderNotification({
+          to: process.responsible.email,
+          processNumber: process.process_number,
+          processTitle: process.title,
+          statusName: process.status,
+          recipientName: process.responsible.name,
+          daysWaiting: daysUntilTarget,
         })
-
-        // Registrar notificação no banco
-        await supabase
-          .from('notifications')
-          .insert({
-            type: 'contract_expiry',
-            recipient_id: contract.created_by,
-            title: `Contrato ${contract.contract_number} vence em ${daysUntilExpiry} dias`,
-            message: `O contrato "${contract.title}" com ${contract.supplier} vencerá em ${daysUntilExpiry} dias.`,
-            contract_id: contract.id,
-            sent_at: new Date().toISOString(),
-          })
-
-        logger.info(`📧 Notificação enviada para contrato ${contract.contract_number}`)
+        logger.info(`📧 Lembrete enviado para processo ${process.process_number} (${process.title}) para ${process.responsible.email}`)
       }
     }
-  } catch (error) {
-    logger.error('❌ Erro na verificação de contratos:', error)
+  } catch (err) {
+    logger.error('Erro ao enviar lembretes de processos:', err)
   }
 })

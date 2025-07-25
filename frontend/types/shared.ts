@@ -1,23 +1,31 @@
-// Tipos compartilhados para evitar conflitos entre componentes
+// Tipos compartilhados para processos SEI unificados
 
-export interface BiddingProcess {
-  id: string;
+export type SEIProcessType = 'contrato' | 'licitacao' | 'dispensa' | 'outro';
+export type SEIProcessStatus = 'em_andamento' | 'finalizado' | 'cancelado';
+
+export interface SEIProcess {
+  id?: string;
   process_number: string;
+  type: SEIProcessType;
   title: string;
-  current_status: { name: string; color: string } | null;
-  created_by: { name: string } | null;
-  updated_at: string;
+  description?: string;
+  supplier?: string;
+  value?: number;
+  start_date?: string;
+  end_date?: string;
+  estimated_value?: number;
+  opening_date?: string;
+  status: SEIProcessStatus;
+  notification_days?: number[];
+  group_id?: string;
+  group?: { id: string; name: string };
+  created_by?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
-export interface Contract {
+export interface SEIProcessWithRelations extends SEIProcess {
   id: string;
-  contract_number: string;
-  supplier: string;
-  value: number;
-  end_date: string;
-  status: 'active' | 'expired' | 'cancelled' | 'renewed';
-  created_by: {
-    name: string;
-    email: string;
-  } | null;
+  group?: { id: string; name: string };
+  created_by_user?: { id: string; name: string; email: string };
 } 
