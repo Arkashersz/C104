@@ -32,6 +32,15 @@ export function useSEIProcesses() {
     totalPages: 0
   })
 
+  // Função para obter token de autenticação
+  const getAuthToken = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      throw new Error('Usuário não autenticado')
+    }
+    return session.access_token
+  }, [supabase])
+
   // Função para sincronizar usuário com a tabela users
   const syncUserWithDatabase = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -151,7 +160,7 @@ export function useSEIProcesses() {
     }
   }, [supabase])
 
-  // Criar processo
+  // Criar processo usando API do backend
   const createProcess = useCallback(async (processData: Omit<SEIProcess, 'id'>): Promise<SEIProcessWithRelations | null> => {
     setLoading(true)
     setError(null)
@@ -164,29 +173,36 @@ export function useSEIProcesses() {
         throw new Error('Usuário não autenticado')
       }
 
-      const processWithUser = {
-        ...processData,
-        created_by: user.id
+      // Obter token de autenticação
+      const token = await getAuthToken()
+
+      // Usar API do backend para criar processo (isso enviará as notificações)
+      const response = await fetch('http://localhost:3001/api/sei-processes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(processData)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Erro ao criar processo')
       }
 
-      const { data, error } = await supabase
-        .from('sei_processes')
-        .insert([processWithUser])
-        .select(`
-          *,
-          group:groups(id, name),
-          created_by_user:users!created_by(id, name, email)
-        `)
-        .single()
+      const { data } = await response.json()
 
-      if (error) {
-        console.error('Erro ao criar processo:', error)
-        throw error
+      // Buscar dados completos do processo criado
+      const fullProcess = await fetchProcess(data.id)
+      
+      if (fullProcess) {
+        // Atualizar lista local
+        setProcesses(prev => [fullProcess, ...prev])
+        return fullProcess
       }
 
-      // Atualizar lista local
-      setProcesses(prev => [data, ...prev])
-      return data
+      return null
     } catch (err) {
       console.error('Erro no createProcess:', err)
       setError(err instanceof Error ? err.message : 'Erro ao criar processo')
@@ -194,41 +210,48 @@ export function useSEIProcesses() {
     } finally {
       setLoading(false)
     }
-  }, [supabase, syncUserWithDatabase])
+  }, [supabase, syncUserWithDatabase, getAuthToken, fetchProcess])
 
-  // Atualizar processo
+  // Atualizar processo usando API do backend
   const updateProcess = useCallback(async (id: string, processData: Partial<SEIProcess>): Promise<SEIProcessWithRelations | null> => {
     setLoading(true)
     setError(null)
 
     try {
-      const { data, error } = await supabase
-        .from('sei_processes')
-        .update({
-          ...processData,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id)
-        .select(`
-          *,
-          group:groups(id, name),
-          created_by_user:users!created_by(id, name, email)
-        `)
-        .single()
+      // Obter token de autenticação
+      const token = await getAuthToken()
 
-      if (error) {
-        console.error('Erro ao atualizar processo:', error)
-        throw error
+      // Usar API do backend para atualizar processo (isso enviará as notificações se o grupo mudou)
+      const response = await fetch(`http://localhost:3001/api/sei-processes/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(processData)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Erro ao atualizar processo')
       }
 
-      // Atualizar lista local
-      setProcesses(prev => 
-        prev.map(process => 
-          process.id === id ? { ...process, ...data } : process
-        )
-      )
+      const { data } = await response.json()
 
-      return data
+      // Buscar dados completos do processo atualizado
+      const fullProcess = await fetchProcess(id)
+      
+      if (fullProcess) {
+        // Atualizar lista local
+        setProcesses(prev => 
+          prev.map(process => 
+            process.id === id ? fullProcess : process
+          )
+        )
+        return fullProcess
+      }
+
+      return null
     } catch (err) {
       console.error('Erro no updateProcess:', err)
       setError(err instanceof Error ? err.message : 'Erro ao atualizar processo')
@@ -236,7 +259,7 @@ export function useSEIProcesses() {
     } finally {
       setLoading(false)
     }
-  }, [supabase])
+  }, [supabase, getAuthToken, fetchProcess])
 
   // Deletar processo
   const deleteProcess = useCallback(async (id: string): Promise<boolean> => {

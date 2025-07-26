@@ -20,7 +20,10 @@ export const authMiddleware = async (
   try {
     const authHeader = req.headers.authorization
     
+    logger.info(`🔐 Auth middleware - Path: ${req.path}, Method: ${req.method}`)
+    
     if (!authHeader) {
+      logger.warn('❌ Auth header não encontrado')
       return res.status(401).json({ 
         error: 'Token de acesso requerido',
         message: 'Faça login para acessar este recurso'
@@ -30,22 +33,27 @@ export const authMiddleware = async (
     const token = authHeader.replace('Bearer ', '')
     
     if (!token) {
+      logger.warn('❌ Token vazio após remover Bearer')
       return res.status(401).json({ 
         error: 'Token inválido',
         message: 'Formato do token deve ser: Bearer <token>'
       })
     }
 
+    logger.info(`🔑 Token recebido: ${token.substring(0, 20)}...`)
+
     // Verificar token com Supabase
     const { data: { user }, error } = await supabase.auth.getUser(token)
     
     if (error || !user) {
-      logger.warn('Token de autenticação inválido:', error?.message)
+      logger.warn('❌ Token de autenticação inválido:', error?.message)
       return res.status(401).json({ 
         error: 'Token inválido ou expirado',
         message: 'Faça login novamente'
       })
     }
+
+    logger.info(`✅ Usuário autenticado: ${user.email}`)
 
     // Buscar dados adicionais do usuário se necessário
     const { data: userData, error: userError } = await supabase
@@ -64,9 +72,10 @@ export const authMiddleware = async (
       ...userData,
     }
 
+    logger.info(`✅ Auth middleware concluído para usuário: ${user.email}`)
     next()
   } catch (error) {
-    logger.error('Erro no middleware de autenticação:', error)
+    logger.error('❌ Erro no middleware de autenticação:', error)
     res.status(500).json({ 
       error: 'Erro interno do servidor',
       message: 'Tente novamente em alguns instantes'

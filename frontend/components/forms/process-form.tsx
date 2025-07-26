@@ -5,7 +5,6 @@ import { useGroups } from '@/lib/hooks/use-groups'
 import { useSEIProcesses } from '@/lib/hooks/use-sei-processes'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 
 interface ProcessFormProps {
@@ -165,17 +164,18 @@ export function ProcessForm({ initialData, onSuccess, onCancel }: ProcessFormPro
         
         <div>
           <label className="block text-sm font-medium mb-1">Tipo *</label>
-          <Select 
+          <select 
             value={form.type || ''} 
             onChange={e => updateField('type', e.target.value)} 
             required
+            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <option value="">Selecione</option>
             <option value="contrato">Contrato</option>
             <option value="licitacao">Licitação</option>
             <option value="dispensa">Dispensa</option>
             <option value="outro">Outro</option>
-          </Select>
+          </select>
         </div>
         
         <div className="md:col-span-2">
@@ -200,30 +200,32 @@ export function ProcessForm({ initialData, onSuccess, onCancel }: ProcessFormPro
         
         <div>
           <label className="block text-sm font-medium mb-1">Grupo Responsável *</label>
-          <Select 
+          <select 
             value={form.group_id || ''} 
             onChange={e => updateField('group_id', e.target.value)} 
             required
+            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <option value="">Selecione um grupo</option>
             {groups.map(g => (
               <option key={g.id} value={g.id}>{g.name}</option>
             ))}
-          </Select>
+          </select>
         </div>
         
         <div>
           <label className="block text-sm font-medium mb-1">Status *</label>
-          <Select 
+          <select 
             value={form.status || ''} 
             onChange={e => updateField('status', e.target.value)} 
             required
+            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <option value="">Selecione</option>
             <option value="em_andamento">Em andamento</option>
             <option value="finalizado">Finalizado</option>
             <option value="cancelado">Cancelado</option>
-          </Select>
+          </select>
         </div>
         
         <div>

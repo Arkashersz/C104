@@ -12,6 +12,11 @@ import { authMiddleware } from './middleware/auth'
 // Routes
 import contractsRouter from './routes/contracts'
 import seiProcessesRouter from './routes/sei-processes'
+import groupsRouter from './routes/groups'
+import notificationsRouter from './routes/notifications'
+
+// Jobs
+import './jobs/process-reminders'
 
 const app = express()
 
@@ -44,20 +49,9 @@ app.get('/health', (req, res) => {
 
 // API Routes (com autenticação)
 app.use('/api/contracts', authMiddleware, contractsRouter)
-app.use('/api/sei-processes', authMiddleware, seiProcessesRouter)
-
-// Rotas simples para outros módulos
-app.use('/api/bidding', authMiddleware, (req, res) => {
-  res.json({ message: 'Bidding routes - Em desenvolvimento' })
-})
-
-app.use('/api/notifications', authMiddleware, (req, res) => {
-  res.json({ message: 'Notifications routes - Em desenvolvimento' })
-})
-
-app.use('/api/users', authMiddleware, (req, res) => {
-  res.json({ message: 'Users routes - Em desenvolvimento' })
-})
+app.use('/api/sei-processes', seiProcessesRouter) // Removido authMiddleware global
+app.use('/api/groups', authMiddleware, groupsRouter)
+app.use('/api/notifications', authMiddleware, notificationsRouter)
 
 // Middleware de erro 404
 app.use(notFoundHandler)

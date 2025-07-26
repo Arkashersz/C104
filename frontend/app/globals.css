@@ -283,3 +283,57 @@ body {
 .card:hover {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+}
+
+/* Modo Compacto */
+.compact-mode .p-6 {
+  padding: 1rem;
+}
+
+.compact-mode .p-8 {
+  padding: 1.5rem;
+}
+
+.compact-mode .mb-6 {
+  margin-bottom: 1rem;
+}
+
+.compact-mode .mb-8 {
+  margin-bottom: 1.5rem;
+}
+
+.compact-mode .space-y-4 > * + * {
+  margin-top: 0.75rem;
+}
+
+.compact-mode .space-y-6 > * + * {
+  margin-top: 1rem;
+}
+
+.compact-mode .text-xl {
+  font-size: 1.125rem;
+}
+
+.compact-mode .text-3xl {
+  font-size: 1.875rem;
+}
+
+/* Transições suaves */
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}

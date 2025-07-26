@@ -10,10 +10,13 @@ export const config = {
   // Supabase
   SUPABASE_URL: process.env.SUPABASE_URL || '',
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+
+  // Gmail SMTP (Email)
+
   
-  // Email
-  SENDGRID_API_KEY: process.env.SENDGRID_API_KEY || '',
-  FROM_EMAIL: process.env.FROM_EMAIL || 'noreply@yourcompany.com',
+  // Email (Gmail SMTP - GRATUITO)
+  GMAIL_USER: 'knowenter@gmail.com',
+  GMAIL_APP_PASSWORD: 'yysa bwbd lpyw xspo',
   
   // App
   APP_URL: process.env.APP_URL || 'http://localhost:3000',
@@ -31,4 +34,9 @@ for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
     console.warn(`⚠️  Variável de ambiente ${envVar} não está definida`)
   }
+}
+
+// Aviso sobre configuração de email
+if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+  console.warn(`⚠️  Configuração de email Gmail não está completa. Configure GMAIL_USER e GMAIL_APP_PASSWORD`)
 }

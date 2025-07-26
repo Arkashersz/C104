@@ -1,0 +1,30 @@
+# Copie este conteúdo para um arquivo chamado .env na pasta backend
+
+# Supabase Configuration
+SUPABASE_URL=https://seu-projeto.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=sua_chave_service_role_aqui
+
+# Gmail SMTP Configuration (Email)
+GMAIL_USER=seu@gmail.com
+GMAIL_APP_PASSWORD=sua_senha_de_app_16_caracteres
+
+# App Configuration
+APP_URL=http://localhost:3000
+APP_NAME=Sistema de Gestão de Contratos
+
+# Security
+JWT_SECRET=jwt-secret-123456789
+CRON_SECRET_KEY=cron-secret-123456789
+
+# Server
+PORT=3001
+NODE_ENV=development
+
+# INSTRUÇÕES:
+# 1. Crie um arquivo chamado .env na pasta backend
+# 2. Copie o conteúdo acima para o arquivo .env
+# 3. Substitua os valores pelos seus dados reais:
+#    - GMAIL_USER: seu email Gmail
+#    - GMAIL_APP_PASSWORD: senha de app do Gmail (16 caracteres)
+#    - SUPABASE_URL: URL do seu projeto Supabase
+#    - SUPABASE_SERVICE_ROLE_KEY: chave service role do Supabase 

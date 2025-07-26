@@ -4,6 +4,7 @@ import { supabase } from '../config/supabase'
 import { logger } from '../utils/logger'
 import { asyncHandler } from '../middleware/error-handler'
 import { emailService } from '../services/email'
+import { authMiddleware } from '../middleware/auth'
 
 const router = Router()
 
@@ -26,12 +27,67 @@ const processSchema = z.object({
 
 // Função para buscar e-mails dos usuários do grupo
 async function getGroupEmails(group_id: string): Promise<{email: string, name: string}[]> {
-  const { data, error } = await supabase
-    .from('group_users')
-    .select('user_id, users(email, name)')
+  logger.info(`🔍 Buscando emails do grupo: ${group_id}`)
+  
+  // Primeiro, buscar os IDs dos usuários no grupo
+  const { data: userGroups, error: userGroupsError } = await supabase
+    .from('user_groups')
+    .select('user_id')
     .eq('group_id', group_id)
-  if (error) throw error
-  return (data || []).map((gu: any) => gu.users)
+  
+  if (userGroupsError) {
+    logger.error(`❌ Erro ao buscar user_groups para grupo ${group_id}:`, userGroupsError)
+    throw userGroupsError
+  }
+  
+  if (!userGroups || userGroups.length === 0) {
+    logger.info(`⚠️ Nenhum usuário encontrado no grupo ${group_id}`)
+    return []
+  }
+  
+  // Extrair os IDs dos usuários
+  const userIds = userGroups.map(ug => ug.user_id)
+  logger.info(`👥 IDs dos usuários no grupo: ${userIds.join(', ')}`)
+  
+  // Buscar os dados dos usuários
+  const { data: users, error: usersError } = await supabase
+    .from('users')
+    .select('id, email, name')
+    .in('id', userIds)
+  
+  if (usersError) {
+    logger.error(`❌ Erro ao buscar usuários:`, usersError)
+    throw usersError
+  }
+  
+  const validUsers = (users || []).filter(user => user.email && user.name)
+  logger.info(`📧 Encontrados ${validUsers.length} usuários no grupo ${group_id}:`, validUsers.map(u => u.email))
+  
+  return validUsers.map(user => ({
+    email: user.email,
+    name: user.name
+  }))
+}
+
+// Função para buscar nome do grupo
+async function getGroupName(group_id: string): Promise<string> {
+  logger.info(`🔍 Buscando nome do grupo: ${group_id}`)
+  
+  const { data, error } = await supabase
+    .from('groups')
+    .select('name')
+    .eq('id', group_id)
+    .single()
+  
+  if (error) {
+    logger.error(`❌ Erro ao buscar nome do grupo ${group_id}:`, error)
+    throw error
+  }
+  
+  const groupName = data?.name || 'Grupo'
+  logger.info(`📋 Nome do grupo ${group_id}: ${groupName}`)
+  
+  return groupName
 }
 
 // Função para registrar log
@@ -39,11 +95,37 @@ async function logProcessAction(process_id: string, user_id: string, action: str
   await supabase.from('sei_process_logs').insert([{ process_id, user_id, action, details }])
 }
 
+// Aplicar middleware de autenticação para todas as rotas EXCETO config
+router.use(authMiddleware)
+
+// GET /api/sei-processes/config - Verificar configuração (PÚBLICO)
+router.get('/config', asyncHandler(async (req: Request, res: Response) => {
+  const config = {
+    supabaseUrl: process.env.SUPABASE_URL ? 'Configurado' : 'Não configurado',
+    supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Configurado' : 'Não configurado',
+    gmailUser: process.env.GMAIL_USER ? 'Configurado' : 'Não configurado',
+    gmailPassword: process.env.GMAIL_APP_PASSWORD ? 'Configurado' : 'Não configurado',
+    nodeEnv: process.env.NODE_ENV || 'development',
+    port: process.env.PORT || 3001
+  }
+  
+  res.json({ 
+    message: 'Configuração do sistema',
+    config,
+    timestamp: new Date().toISOString()
+  })
+}))
+
 // POST /api/sei-processes - Criar novo processo
 router.post('/', asyncHandler(async (req: Request, res: Response) => {
   const validated = processSchema.parse(req.body)
   const userId = req.user?.id
   const groupId = validated.group_id
+
+  logger.info(`📋 Criando processo SEI: ${validated.process_number}`)
+  logger.info(`👤 Usuário: ${userId}`)
+  logger.info(`👥 Grupo: ${groupId}`)
+  logger.info(`📝 Dados completos:`, validated)
 
   // Inserir processo
   const { data: process, error } = await supabase
@@ -53,22 +135,45 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
     .single()
   if (error) throw new Error(error.message)
 
+  logger.info(`✅ Processo criado com ID: ${process.id}`)
+
   // Log de criação
   await logProcessAction(process.id, userId, 'create', { process })
 
   // Enviar e-mail para todos do grupo
   if (groupId) {
-    const groupUsers = await getGroupEmails(groupId)
-    for (const user of groupUsers) {
-      await emailService.sendProcessReminderNotification({
-        to: user.email,
-        processNumber: process.process_number,
-        processTitle: process.title,
-        statusName: process.status,
-        recipientName: user.name,
-        daysWaiting: 0,
-      })
+    logger.info(`📧 Enviando notificações para o grupo: ${groupId}`)
+    
+    try {
+      const groupUsers = await getGroupEmails(groupId)
+      const groupName = await getGroupName(groupId)
+      
+      logger.info(`📧 Enviando emails para ${groupUsers.length} usuários do grupo ${groupName}`)
+      
+      if (groupUsers.length === 0) {
+        logger.warn(`⚠️ Nenhum usuário encontrado no grupo ${groupName} (${groupId})`)
+      }
+      
+      for (const user of groupUsers) {
+        try {
+          logger.info(`📧 Tentando enviar email para: ${user.email}`)
+          await emailService.sendGroupAssignmentNotification({
+            to: user.email,
+            processNumber: process.process_number,
+            processTitle: process.title,
+            groupName: groupName,
+            recipientName: user.name,
+          })
+          logger.info(`✅ Email enviado para: ${user.email}`)
+        } catch (emailError) {
+          logger.error(`❌ Erro ao enviar email para ${user.email}:`, emailError)
+        }
+      }
+    } catch (groupError) {
+      logger.error(`❌ Erro ao processar grupo ${groupId}:`, groupError)
     }
+  } else {
+    logger.info(`⚠️ Nenhum grupo atribuído ao processo ${process.process_number}`)
   }
 
   res.status(201).json({ data: process, message: 'Processo criado com sucesso' })
@@ -81,6 +186,21 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user?.id
   const groupId = validated.group_id
 
+  logger.info(`📝 Atualizando processo SEI: ${id}`)
+  logger.info(`👤 Usuário: ${userId}`)
+  logger.info(`👥 Novo grupo: ${groupId}`)
+
+  // Buscar processo atual para verificar se mudou o grupo
+  const { data: currentProcess, error: currentError } = await supabase
+    .from('sei_processes')
+    .select('group_id, process_number, title')
+    .eq('id', id)
+    .single()
+  if (currentError) throw new Error(currentError.message)
+
+  logger.info(`📋 Processo atual - Grupo: ${currentProcess.group_id}`)
+  logger.info(`📋 Mudança de grupo: ${currentProcess.group_id} → ${groupId}`)
+
   // Atualizar processo
   const { data: process, error } = await supabase
     .from('sei_processes')
@@ -90,22 +210,40 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
     .single()
   if (error) throw new Error(error.message)
 
+  logger.info(`✅ Processo atualizado com sucesso`)
+
   // Log de edição
   await logProcessAction(id, userId, 'update', { changes: validated })
 
-  // Se mudou o grupo, enviar e-mail para todos do grupo
-  if (groupId) {
-    const groupUsers = await getGroupEmails(groupId)
-    for (const user of groupUsers) {
-      await emailService.sendProcessReminderNotification({
-        to: user.email,
-        processNumber: process.process_number,
-        processTitle: process.title,
-        statusName: process.status,
-        recipientName: user.name,
-        daysWaiting: 0,
-      })
+  // Se mudou o grupo, enviar e-mail para todos do novo grupo
+  if (groupId && groupId !== currentProcess.group_id) {
+    logger.info(`📧 Enviando notificações para o novo grupo: ${groupId}`)
+    
+    try {
+      const groupUsers = await getGroupEmails(groupId)
+      const groupName = await getGroupName(groupId)
+      
+      logger.info(`📧 Enviando emails para ${groupUsers.length} usuários do grupo ${groupName}`)
+      
+      for (const user of groupUsers) {
+        try {
+          await emailService.sendGroupAssignmentNotification({
+            to: user.email,
+            processNumber: process.process_number,
+            processTitle: process.title,
+            groupName: groupName,
+            recipientName: user.name,
+          })
+          logger.info(`✅ Email enviado para: ${user.email}`)
+        } catch (emailError) {
+          logger.error(`❌ Erro ao enviar email para ${user.email}:`, emailError)
+        }
+      }
+    } catch (groupError) {
+      logger.error(`❌ Erro ao processar grupo ${groupId}:`, groupError)
     }
+  } else {
+    logger.info(`ℹ️ Nenhuma mudança de grupo detectada`)
   }
 
   res.json({ data: process, message: 'Processo atualizado com sucesso' })
