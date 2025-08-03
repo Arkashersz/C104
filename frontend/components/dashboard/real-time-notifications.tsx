@@ -14,9 +14,12 @@ interface RealTimeNotification {
   message: string
   timestamp: string
   read: boolean
+  viewed: boolean // Novo campo para marcar como visualizada
   processId?: string
   priority: 'low' | 'medium' | 'high'
   shownToday?: boolean
+  createdDate?: string // Data de criação da notificação (YYYY-MM-DD)
+  deleted?: boolean // Campo para marcar como deletada
 }
 
 interface RealTimeNotificationsProps {
@@ -30,6 +33,7 @@ export function RealTimeNotifications({ processes, onProcessClick }: RealTimeNot
   const [unreadCount, setUnreadCount] = useState(0)
   const [lastNotificationDate, setLastNotificationDate] = useState<string>('')
   const [shownToastIds, setShownToastIds] = useState<Set<string>>(new Set())
+  const [activeTab, setActiveTab] = useState<'active' | 'read' | 'deleted'>('active')
 
   // Função para obter data atual (SEM conversão de fuso)
   const getToday = () => {
@@ -92,134 +96,322 @@ export function RealTimeNotifications({ processes, onProcessClick }: RealTimeNot
     return date.toLocaleDateString('pt-BR')
   }
 
-  // Simular notificações em tempo real
-  useEffect(() => {
+  // Carregar notificações por tipo
+  const getNotificationsByType = (type: 'active' | 'read' | 'deleted') => {
+    try {
+      const saved = localStorage.getItem('notifications')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        const todayKey = getTodayKey()
+        
+        // Filtrar notificações do dia atual
+        const todayNotifications = parsed.filter((n: any) => {
+          // Se a notificação tem uma data de criação específica, usar ela
+          if (n.createdDate) {
+            const notificationDate = getProcessDate(n.createdDate)
+            const notificationKey = `${notificationDate.getFullYear()}-${String(notificationDate.getMonth() + 1).padStart(2, '0')}-${String(notificationDate.getDate()).padStart(2, '0')}`
+            return notificationKey === todayKey
+          }
+          
+          // Se não tem data específica, usar timestamp
+          const notificationDate = getProcessDate(n.timestamp)
+          const notificationKey = `${notificationDate.getFullYear()}-${String(notificationDate.getMonth() + 1).padStart(2, '0')}-${String(notificationDate.getDate()).padStart(2, '0')}`
+          return notificationKey === todayKey
+        })
+        
+        // Filtrar por tipo
+        switch (type) {
+          case 'active':
+            // Notificações ativas: não deletadas E não lidas
+            return todayNotifications.filter((n: any) => !n.deleted && !n.read)
+          case 'read':
+            // Notificações lidas: não deletadas E lidas
+            return todayNotifications.filter((n: any) => !n.deleted && n.read)
+          case 'deleted':
+            // Notificações deletadas
+            return todayNotifications.filter((n: any) => n.deleted)
+          default:
+            return []
+        }
+      }
+    } catch (error) {
+      console.log('Erro ao carregar notificações por tipo:', error)
+    }
+    return []
+  }
+
+  // Carregar notificações salvas do localStorage
+  const loadSavedNotifications = () => {
+    return getNotificationsByType('active')
+  }
+
+  // Salvar notificações no localStorage
+  const saveNotifications = (notifications: RealTimeNotification[]) => {
+    try {
+      // Carregar todas as notificações existentes
+      const allSaved = JSON.parse(localStorage.getItem('notifications') || '[]')
+      
+      // Filtrar notificações antigas (mais de 7 dias) e deletadas
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+      const sevenDaysAgoKey = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(sevenDaysAgo.getDate()).padStart(2, '0')}`
+      
+      const recentNotifications = allSaved.filter((n: any) => {
+        // Não incluir notificações deletadas
+        if (n.deleted) {
+          return false
+        }
+        
+        const notificationDate = n.createdDate || n.timestamp
+        const date = getProcessDate(notificationDate)
+        const notificationKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+        return notificationKey >= sevenDaysAgoKey
+      })
+      
+      // Combinar notificações existentes com novas, evitando duplicatas por ID
+      const existingIds = new Set(recentNotifications.map((n: any) => n.id))
+      const uniqueNewNotifications = notifications.filter(n => !existingIds.has(n.id))
+      
+      const updatedNotifications = [...recentNotifications, ...uniqueNewNotifications]
+      
+      localStorage.setItem('notifications', JSON.stringify(updatedNotifications))
+    } catch (error) {
+      console.log('Erro ao salvar notificações no localStorage:', error)
+    }
+  }
+
+  // Gerar notificações baseadas nos processos
+  const generateNotifications = () => {
+    const newNotifications: RealTimeNotification[] = []
+    const today = getTodayStart()
     const todayKey = getTodayKey()
-    
-    // Se mudou o dia, limpar os IDs de toast mostrados
-    if (lastNotificationDate && lastNotificationDate !== todayKey) {
-      setShownToastIds(new Set())
-    }
-    
-    // Se já mostrou notificações hoje, não mostrar novamente
-    if (lastNotificationDate === todayKey) {
-      return
-    }
 
-    // Gerar notificações baseadas nos processos
-    const generateNotifications = () => {
-      const newNotifications: RealTimeNotification[] = []
-      const today = getTodayStart()
+    // Carregar notificações deletadas para verificar se já foram deletadas
+    const allSaved = JSON.parse(localStorage.getItem('notifications') || '[]')
+    const deletedNotificationIds = new Set(
+      allSaved
+        .filter((n: any) => n.deleted)
+        .map((n: any) => n.id)
+    )
 
-      // Processos vencidos (data já passou)
-      const expiredProcesses = processes.filter(p => {
-        if (!p.end_date || p.status === 'finalizado') return false
-        const endDate = getProcessDate(p.end_date)
-        endDate.setHours(0, 0, 0, 0)
-        return endDate < today
+    // Processos vencidos (data já passou)
+    const expiredProcesses = processes.filter(p => {
+      if (!p.end_date || p.status === 'finalizado') return false
+      const endDate = getProcessDate(p.end_date)
+      endDate.setHours(0, 0, 0, 0)
+      return endDate < today
+    })
+
+    expiredProcesses.forEach(process => {
+      const notificationId = `expired-${process.id}-${todayKey}`
+      
+      // Verificar se esta notificação já foi deletada
+      if (deletedNotificationIds.has(notificationId)) {
+        return // Pular se já foi deletada
+      }
+      
+      const endDate = getProcessDate(process.end_date)
+      newNotifications.push({
+        id: notificationId,
+        type: 'process_expired',
+        title: 'Processo Vencido',
+        message: `O processo ${process.process_number} venceu em ${endDate.toLocaleDateString('pt-BR')}`,
+        timestamp: new Date().toISOString(),
+        read: false,
+        viewed: false,
+        processId: process.id,
+        priority: 'high',
+        shownToday: true,
+        createdDate: todayKey
       })
+    })
 
-      expiredProcesses.forEach(process => {
-        const endDate = getProcessDate(process.end_date)
+    // Processos vencendo hoje (data é hoje)
+    const expiringToday = processes.filter(p => {
+      if (!p.end_date || p.status === 'finalizado') return false
+      const endDate = getProcessDate(p.end_date)
+      endDate.setHours(0, 0, 0, 0)
+      return endDate.getTime() === today.getTime()
+    })
+
+    expiringToday.forEach(process => {
+      const notificationId = `expiring-today-${process.id}-${todayKey}`
+      
+      // Verificar se esta notificação já foi deletada
+      if (deletedNotificationIds.has(notificationId)) {
+        return // Pular se já foi deletada
+      }
+      
+      newNotifications.push({
+        id: notificationId,
+        type: 'deadline_approaching',
+        title: 'Processo Vencendo Hoje',
+        message: `O processo ${process.process_number} vence hoje`,
+        timestamp: new Date().toISOString(),
+        read: false,
+        viewed: false,
+        processId: process.id,
+        priority: 'high',
+        shownToday: true,
+        createdDate: todayKey
+      })
+    })
+
+    // Processos sem grupo
+    const processesWithoutGroup = processes.filter(p => !p.group_id)
+    if (processesWithoutGroup.length > 0) {
+      const notificationId = `no-group-${todayKey}`
+      
+      // Verificar se esta notificação já foi deletada
+      if (!deletedNotificationIds.has(notificationId)) {
         newNotifications.push({
-          id: `expired-${process.id}`,
-          type: 'process_expired',
-          title: 'Processo Vencido',
-          message: `O processo ${process.process_number} venceu em ${endDate.toLocaleDateString('pt-BR')}`,
-          timestamp: new Date().toISOString(),
-          read: false,
-          processId: process.id,
-          priority: 'high',
-          shownToday: true
-        })
-      })
-
-      // Processos vencendo hoje (data é hoje)
-      const expiringToday = processes.filter(p => {
-        if (!p.end_date || p.status === 'finalizado') return false
-        const endDate = getProcessDate(p.end_date)
-        endDate.setHours(0, 0, 0, 0)
-        return endDate.getTime() === today.getTime()
-      })
-
-      expiringToday.forEach(process => {
-        newNotifications.push({
-          id: `expiring-today-${process.id}`,
-          type: 'deadline_approaching',
-          title: 'Processo Vencendo Hoje',
-          message: `O processo ${process.process_number} vence hoje`,
-          timestamp: new Date().toISOString(),
-          read: false,
-          processId: process.id,
-          priority: 'high',
-          shownToday: true
-        })
-      })
-
-      // Processos sem grupo
-      const processesWithoutGroup = processes.filter(p => !p.group_id)
-      if (processesWithoutGroup.length > 0) {
-        newNotifications.push({
-          id: 'no-group',
+          id: notificationId,
           type: 'group_assigned',
           title: 'Processos Sem Responsável',
           message: `${processesWithoutGroup.length} processo(s) sem grupo responsável`,
           timestamp: new Date().toISOString(),
           read: false,
+          viewed: false,
           priority: 'medium',
-          shownToday: true
+          shownToday: true,
+          createdDate: todayKey
         })
       }
-
-      // Processos criados recentemente (últimas 24h)
-      const recentProcesses = processes.filter(p => {
-        const createdDate = getProcessDate(p.created_at)
-        const now = getToday()
-        const diffHours = (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60)
-        return diffHours <= 24
-      })
-
-      recentProcesses.forEach(process => {
-        newNotifications.push({
-          id: `created-${process.id}`,
-          type: 'process_created',
-          title: 'Novo Processo Criado',
-          message: `Processo ${process.process_number} foi criado`,
-          timestamp: process.created_at,
-          read: false,
-          processId: process.id,
-          priority: 'low',
-          shownToday: true
-        })
-      })
-
-      return newNotifications
     }
 
+    // Processos criados recentemente (últimas 24h)
+    const recentProcesses = processes.filter(p => {
+      const createdDate = getProcessDate(p.created_at)
+      const now = getToday()
+      const diffHours = (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60)
+      return diffHours <= 24
+    })
+
+    recentProcesses.forEach(process => {
+      const notificationId = `created-${process.id}-${todayKey}`
+      
+      // Verificar se esta notificação já foi deletada
+      if (deletedNotificationIds.has(notificationId)) {
+        return // Pular se já foi deletada
+      }
+      
+      newNotifications.push({
+        id: notificationId,
+        type: 'process_created',
+        title: 'Novo Processo Criado',
+        message: `Processo ${process.process_number} foi criado`,
+        timestamp: process.created_at,
+        read: false,
+        viewed: false,
+        processId: process.id,
+        priority: 'low',
+        shownToday: true,
+        createdDate: todayKey
+      })
+    })
+
+    return newNotifications
+  }
+
+  // Simular notificações em tempo real
+  useEffect(() => {
+    const todayKey = getTodayKey()
+    
+    // Se mudou o dia, limpar os IDs de toast mostrados e limpar notificações antigas
+    if (lastNotificationDate !== todayKey) {
+      setShownToastIds(new Set())
+      setLastNotificationDate(todayKey)
+      
+      // Limpar notificações antigas do localStorage (mais de 7 dias)
+      try {
+        const allSaved = JSON.parse(localStorage.getItem('notifications') || '[]')
+        const sevenDaysAgo = new Date()
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+        const sevenDaysAgoKey = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(sevenDaysAgo.getDate()).padStart(2, '0')}`
+        
+        const recentNotifications = allSaved.filter((n: any) => {
+          const notificationDate = n.createdDate || n.timestamp
+          const date = getProcessDate(notificationDate)
+          const notificationKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+          return notificationKey >= sevenDaysAgoKey
+        })
+        
+        localStorage.setItem('notifications', JSON.stringify(recentNotifications))
+      } catch (error) {
+        console.log('Erro ao limpar notificações antigas:', error)
+      }
+      
+      // Limpar notificações deletadas antigas
+      cleanupDeletedNotifications()
+    }
+
+    // Carregar notificações salvas do localStorage
+    const savedNotifications = loadSavedNotifications()
+    
+    // Se já temos notificações para hoje, usar apenas elas
+    if (savedNotifications.length > 0) {
+      setNotifications(savedNotifications)
+      return
+    }
+    
+    // Se não temos notificações para hoje, gerar novas
     const newNotifications = generateNotifications()
     
     if (newNotifications.length > 0) {
-      setNotifications(prev => {
-        // Combinar notificações existentes com novas, evitando duplicatas
-        const existingIds = new Set(prev.map(n => n.id))
-        const uniqueNewNotifications = newNotifications.filter(n => !existingIds.has(n.id))
-        return [...prev, ...uniqueNewNotifications]
-      })
-      
-      setLastNotificationDate(todayKey)
+      setNotifications(newNotifications)
+      saveNotifications(newNotifications)
     }
-  }, [processes, lastNotificationDate])
+  }, [lastNotificationDate]) // Removido 'processes' das dependências
 
-  // Atualizar contador de não lidas
+  // Atualizar notificações quando processos mudam (apenas se necessário)
   useEffect(() => {
-    setUnreadCount(notifications.filter(n => !n.read).length)
-  }, [notifications])
+    const todayKey = getTodayKey()
+    const savedNotifications = loadSavedNotifications()
+    
+    // Se já temos notificações para hoje, verificar se precisamos adicionar novas
+    if (savedNotifications.length > 0) {
+      // Gerar notificações para ver se há novas que não existem
+      const newNotifications = generateNotifications()
+      
+      // Filtrar apenas notificações que não existem nas salvas
+      const existingIds = new Set(savedNotifications.map(n => n.id))
+      const trulyNewNotifications = newNotifications.filter(n => !existingIds.has(n.id))
+      
+      if (trulyNewNotifications.length > 0) {
+        // Adicionar apenas as novas notificações
+        const updatedNotifications = [...savedNotifications, ...trulyNewNotifications]
+        setNotifications(updatedNotifications)
+        saveNotifications(updatedNotifications)
+      }
+      return
+    }
+    
+    // Se não temos notificações para hoje, gerar novas
+    const newNotifications = generateNotifications()
+    
+    if (newNotifications.length > 0) {
+      setNotifications(newNotifications)
+      saveNotifications(newNotifications)
+    }
+  }, [processes]) // Apenas quando processos mudam
+
+  // Atualizar notificações quando a aba muda
+  useEffect(() => {
+    const currentNotifications = getNotificationsByType(activeTab)
+    setNotifications(currentNotifications)
+  }, [activeTab])
+
+  // Atualizar contador de não lidas (apenas não visualizadas das ativas)
+  useEffect(() => {
+    const activeNotifications = getNotificationsByType('active')
+    setUnreadCount(activeNotifications.filter(n => !n.viewed).length)
+  }, [activeTab, notifications])
 
   // Mostrar toast apenas para notificações críticas novas
   useEffect(() => {
     const criticalNotifications = notifications.filter(n => 
       (n.type === 'deadline_approaching' || n.type === 'process_expired') && 
-      !n.read && 
+      !n.viewed && // Mudou de !n.read para !n.viewed
       n.shownToday &&
       !shownToastIds.has(n.id) // Só mostrar toast se ainda não foi mostrado
     )
@@ -242,18 +434,80 @@ export function RealTimeNotifications({ processes, onProcessClick }: RealTimeNot
     }
   }, [notifications, onProcessClick, shownToastIds])
 
-  const markAsRead = (notificationId: string) => {
-    setNotifications(prev => 
-      prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
+  const markAsViewed = async (notificationId: string) => {
+    // Atualizar localStorage diretamente
+    const allSaved = JSON.parse(localStorage.getItem('notifications') || '[]')
+    const updatedSaved = allSaved.map((n: any) => 
+      n.id === notificationId ? { ...n, viewed: true, read: true } : n
     )
+    localStorage.setItem('notifications', JSON.stringify(updatedSaved))
+    
+    // Atualizar estado em tempo real
+    const currentNotifications = getNotificationsByType(activeTab)
+    setNotifications(currentNotifications)
   }
 
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+  const markAsRead = async (notificationId: string) => {
+    // Atualizar localStorage diretamente
+    const allSaved = JSON.parse(localStorage.getItem('notifications') || '[]')
+    const updatedSaved = allSaved.map((n: any) => 
+      n.id === notificationId ? { ...n, read: true } : n
+    )
+    localStorage.setItem('notifications', JSON.stringify(updatedSaved))
+    
+    // Atualizar estado em tempo real
+    const currentNotifications = getNotificationsByType(activeTab)
+    setNotifications(currentNotifications)
+  }
+
+  const markAllAsViewed = async () => {
+    // Atualizar localStorage diretamente
+    const allSaved = JSON.parse(localStorage.getItem('notifications') || '[]')
+    const updatedSaved = allSaved.map((n: any) => ({ ...n, viewed: true, read: true }))
+    localStorage.setItem('notifications', JSON.stringify(updatedSaved))
+    
+    // Atualizar estado em tempo real
+    const currentNotifications = getNotificationsByType(activeTab)
+    setNotifications(currentNotifications)
   }
 
   const deleteNotification = (notificationId: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== notificationId))
+    // Marcar como deletada no localStorage
+    const allSaved = JSON.parse(localStorage.getItem('notifications') || '[]')
+    const updatedSaved = allSaved.map((n: any) => 
+      n.id === notificationId ? { ...n, deleted: true } : n
+    )
+    localStorage.setItem('notifications', JSON.stringify(updatedSaved))
+    
+    // Atualizar estado em tempo real
+    const currentNotifications = getNotificationsByType(activeTab)
+    setNotifications(currentNotifications)
+  }
+
+  const restoreNotification = (notificationId: string) => {
+    // Restaurar notificação
+    const allSaved = JSON.parse(localStorage.getItem('notifications') || '[]')
+    const updatedSaved = allSaved.map((n: any) => 
+      n.id === notificationId ? { ...n, deleted: false } : n
+    )
+    localStorage.setItem('notifications', JSON.stringify(updatedSaved))
+    
+    // Atualizar estado em tempo real
+    const currentNotifications = getNotificationsByType(activeTab)
+    setNotifications(currentNotifications)
+  }
+
+  const markAsUnread = (notificationId: string) => {
+    // Marcar como não lida
+    const allSaved = JSON.parse(localStorage.getItem('notifications') || '[]')
+    const updatedSaved = allSaved.map((n: any) => 
+      n.id === notificationId ? { ...n, read: false, viewed: false } : n
+    )
+    localStorage.setItem('notifications', JSON.stringify(updatedSaved))
+    
+    // Atualizar estado em tempo real
+    const currentNotifications = getNotificationsByType(activeTab)
+    setNotifications(currentNotifications)
   }
 
   const getNotificationIcon = (type: RealTimeNotification['type']) => {
@@ -299,6 +553,73 @@ export function RealTimeNotifications({ processes, onProcessClick }: RealTimeNot
     return date.toLocaleDateString('pt-BR')
   }
 
+  // Atualizar notificações existentes no localStorage
+  const updateNotificationsInStorage = (updatedNotifications: RealTimeNotification[]) => {
+    try {
+      // Carregar todas as notificações existentes
+      const allSaved = JSON.parse(localStorage.getItem('notifications') || '[]')
+      
+      // Filtrar notificações antigas (mais de 7 dias)
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+      const sevenDaysAgoKey = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(sevenDaysAgo.getDate()).padStart(2, '0')}`
+      
+      const recentNotifications = allSaved.filter((n: any) => {
+        const notificationDate = n.createdDate || n.timestamp
+        const date = getProcessDate(notificationDate)
+        const notificationKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+        return notificationKey >= sevenDaysAgoKey
+      })
+      
+      // Atualizar notificações existentes com as novas
+      const updatedMap = new Map()
+      
+      // Adicionar notificações antigas (incluindo deletadas para manter o estado)
+      recentNotifications.forEach((n: any) => {
+        updatedMap.set(n.id, n)
+      })
+      
+      // Atualizar com as novas (não deletadas)
+      updatedNotifications.forEach(n => {
+        updatedMap.set(n.id, n)
+      })
+      
+      const finalNotifications = Array.from(updatedMap.values())
+      localStorage.setItem('notifications', JSON.stringify(finalNotifications))
+    } catch (error) {
+      console.log('Erro ao atualizar notificações no localStorage:', error)
+    }
+  }
+
+  // Limpar notificações deletadas antigas do localStorage
+  const cleanupDeletedNotifications = () => {
+    try {
+      const allSaved = JSON.parse(localStorage.getItem('notifications') || '[]')
+      
+      // Remover notificações deletadas que são mais antigas que 1 dia
+      const oneDayAgo = new Date()
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1)
+      const oneDayAgoKey = `${oneDayAgo.getFullYear()}-${String(oneDayAgo.getMonth() + 1).padStart(2, '0')}-${String(oneDayAgo.getDate()).padStart(2, '0')}`
+      
+      const cleanedNotifications = allSaved.filter((n: any) => {
+        // Se não foi deletada, manter
+        if (!n.deleted) {
+          return true
+        }
+        
+        // Se foi deletada, verificar se é recente (menos de 1 dia)
+        const notificationDate = n.createdDate || n.timestamp
+        const date = getProcessDate(notificationDate)
+        const notificationKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+        return notificationKey >= oneDayAgoKey
+      })
+      
+      localStorage.setItem('notifications', JSON.stringify(cleanedNotifications))
+    } catch (error) {
+      console.log('Erro ao limpar notificações deletadas:', error)
+    }
+  }
+
   return (
     <div className="relative">
       {/* Botão de notificações */}
@@ -321,90 +642,201 @@ export function RealTimeNotifications({ processes, onProcessClick }: RealTimeNot
 
       {/* Painel de notificações */}
       {showNotifications && (
-        <Card className="absolute top-12 right-0 w-96 z-50 shadow-xl">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Notificações</CardTitle>
-              <div className="flex items-center gap-2">
-                {unreadCount > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={markAllAsRead}
-                    className="text-xs"
-                  >
-                    Marcar todas como lidas
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowNotifications(false)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="max-h-96 overflow-y-auto">
-              {notifications.length === 0 ? (
-                <div className="p-6 text-center text-gray-500">
-                  <Bell className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                  <p>Nenhuma notificação</p>
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {notifications.map((notification) => (
-                    <div
-                      key={notification.id}
-                      className={`p-4 border-l-4 hover:bg-gray-50 transition-colors cursor-pointer ${
-                        notification.read ? 'opacity-60' : ''
-                      } ${getPriorityColor(notification.priority)}`}
-                      onClick={() => {
-                        if (!notification.read) {
-                          markAsRead(notification.id)
-                        }
-                        if (notification.processId) {
-                          onProcessClick?.(notification.processId)
-                        }
-                      }}
+        <>
+          {/* Backdrop para melhorar legibilidade */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-20 z-40"
+            onClick={() => setShowNotifications(false)}
+          />
+          <Card className="absolute top-12 right-0 w-[500px] z-50 shadow-xl bg-white border border-gray-200">
+            <CardHeader className="pb-3 bg-white">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Notificações</CardTitle>
+                <div className="flex items-center gap-2">
+                  {unreadCount > 0 && activeTab === 'active' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={markAllAsViewed}
+                      className="text-xs"
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-3 flex-1">
-                          {getNotificationIcon(notification.type)}
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-sm">{notification.title}</h4>
-                            <p className="text-xs text-gray-600 mt-1">{notification.message}</p>
-                            <p className="text-xs text-gray-400 mt-1">
-                              {formatTimestamp(notification.timestamp)}
-                            </p>
+                      Ler todas
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowNotifications(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Abas */}
+              <div className="flex border-b border-gray-200 mt-3">
+                <button
+                  onClick={() => setActiveTab('active')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'active'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Ativas ({getNotificationsByType('active').length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('read')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'read'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Lidas ({getNotificationsByType('read').length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('deleted')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'deleted'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Lixeira ({getNotificationsByType('deleted').length})
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0 bg-white">
+              <div className="max-h-[600px] overflow-y-auto bg-white">
+                {(() => {
+                  const currentNotifications = getNotificationsByType(activeTab)
+                  
+                  if (currentNotifications.length === 0) {
+                    return (
+                      <div className="p-8 text-center text-gray-500 bg-white">
+                        <Bell className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                        <p className="text-lg">
+                          {activeTab === 'active' && 'Nenhuma notificação ativa'}
+                          {activeTab === 'read' && 'Nenhuma notificação lida'}
+                          {activeTab === 'deleted' && 'Lixeira vazia'}
+                        </p>
+                      </div>
+                    )
+                  }
+                  
+                  return (
+                    <div className="space-y-2 bg-white p-2">
+                      {currentNotifications.map((notification) => (
+                        <div
+                          key={notification.id}
+                          className={`p-4 border-l-4 hover:bg-gray-50 transition-colors cursor-pointer bg-white rounded-lg ${
+                            notification.read ? 'opacity-60' : ''
+                          } ${getPriorityColor(notification.priority)}`}
+                          onClick={async () => {
+                            if (activeTab === 'active') {
+                              if (!notification.read) {
+                                await markAsRead(notification.id)
+                              }
+                              if (!notification.viewed) {
+                                await markAsViewed(notification.id)
+                              }
+                              if (notification.processId) {
+                                onProcessClick?.(notification.processId)
+                              }
+                            }
+                          }}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-3 flex-1">
+                              {getNotificationIcon(notification.type)}
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-medium text-sm">{notification.title}</h4>
+                                <p className="text-xs text-gray-600 mt-1">{notification.message}</p>
+                                <p className="text-xs text-gray-400 mt-1">
+                                  {formatTimestamp(notification.timestamp)}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {activeTab === 'active' && !notification.viewed && (
+                                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                              )}
+                              {activeTab === 'active' && !notification.read && notification.viewed && (
+                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              )}
+                              
+                              {/* Botões específicos por aba */}
+                              {activeTab === 'active' && !notification.viewed && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    markAsViewed(notification.id)
+                                  }}
+                                  className="h-6 w-6 p-0 text-green-600 hover:text-green-700"
+                                  title="Marcar como visualizada"
+                                >
+                                  <CheckCircle className="h-3 w-3" />
+                                </Button>
+                              )}
+                              
+                              {activeTab === 'read' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    markAsUnread(notification.id)
+                                  }}
+                                  className="h-6 w-6 p-0 text-blue-600 hover:text-blue-700"
+                                  title="Marcar como não lida"
+                                >
+                                  <Clock className="h-3 w-3" />
+                                </Button>
+                              )}
+                              
+                              {activeTab === 'deleted' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    restoreNotification(notification.id)
+                                  }}
+                                  className="h-6 w-6 p-0 text-green-600 hover:text-green-700"
+                                  title="Restaurar notificação"
+                                >
+                                  <CheckCircle className="h-3 w-3" />
+                                </Button>
+                              )}
+                              
+                              {activeTab !== 'deleted' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    deleteNotification(notification.id)
+                                  }}
+                                  className="h-6 w-6 p-0"
+                                  title="Excluir notificação"
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          {!notification.read && (
-                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              deleteNotification(notification.id)
-                            }}
-                            className="h-6 w-6 p-0"
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                  )
+                })()}
+              </div>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   )

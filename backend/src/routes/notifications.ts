@@ -162,6 +162,179 @@ router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
   })
 }))
 
+// PUT /api/notifications/:id/mark-read - Marcar notificação como lida
+router.put('/:id/mark-read', asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params
+  const userId = req.user?.id
+
+  if (!userId) {
+    return res.status(401).json({ 
+      error: 'Usuário não autenticado' 
+    })
+  }
+
+  logger.info(`📧 Marcando notificação como lida: ${id}`)
+
+  // Verificar se a notificação pertence ao usuário
+  const { data: notification, error: fetchError } = await supabase
+    .from('notifications')
+    .select('recipient_id')
+    .eq('id', id)
+    .single()
+
+  if (fetchError) {
+    return res.status(404).json({ 
+      error: 'Notificação não encontrada' 
+    })
+  }
+
+  if (notification.recipient_id !== userId) {
+    return res.status(403).json({ 
+      error: 'Sem permissão para modificar esta notificação' 
+    })
+  }
+
+  const { data, error } = await supabase
+    .from('notifications')
+    .update({ 
+      read: true,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    logger.error('❌ Erro ao marcar notificação como lida:', error)
+    throw new Error(`Erro ao marcar notificação como lida: ${error.message}`)
+  }
+
+  logger.info(`✅ Notificação marcada como lida: ${data.id}`)
+  res.json({ 
+    data,
+    message: 'Notificação marcada como lida'
+  })
+}))
+
+// PUT /api/notifications/:id/mark-viewed - Marcar notificação como visualizada
+router.put('/:id/mark-viewed', asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params
+  const userId = req.user?.id
+
+  if (!userId) {
+    return res.status(401).json({ 
+      error: 'Usuário não autenticado' 
+    })
+  }
+
+  logger.info(`📧 Marcando notificação como visualizada: ${id}`)
+
+  // Verificar se a notificação pertence ao usuário
+  const { data: notification, error: fetchError } = await supabase
+    .from('notifications')
+    .select('recipient_id')
+    .eq('id', id)
+    .single()
+
+  if (fetchError) {
+    return res.status(404).json({ 
+      error: 'Notificação não encontrada' 
+    })
+  }
+
+  if (notification.recipient_id !== userId) {
+    return res.status(403).json({ 
+      error: 'Sem permissão para modificar esta notificação' 
+    })
+  }
+
+  const { data, error } = await supabase
+    .from('notifications')
+    .update({ 
+      viewed: true,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    logger.error('❌ Erro ao marcar notificação como visualizada:', error)
+    throw new Error(`Erro ao marcar notificação como visualizada: ${error.message}`)
+  }
+
+  logger.info(`✅ Notificação marcada como visualizada: ${data.id}`)
+  res.json({ 
+    data,
+    message: 'Notificação marcada como visualizada'
+  })
+}))
+
+// PUT /api/notifications/mark-all-read - Marcar todas as notificações como lidas
+router.put('/mark-all-read', asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user?.id
+
+  if (!userId) {
+    return res.status(401).json({ 
+      error: 'Usuário não autenticado' 
+    })
+  }
+
+  logger.info(`📧 Marcando todas as notificações como lidas para usuário: ${userId}`)
+
+  const { data, error } = await supabase
+    .from('notifications')
+    .update({ 
+      read: true,
+      updated_at: new Date().toISOString()
+    })
+    .eq('recipient_id', userId)
+    .eq('read', false)
+
+  if (error) {
+    logger.error('❌ Erro ao marcar notificações como lidas:', error)
+    throw new Error(`Erro ao marcar notificações como lidas: ${error.message}`)
+  }
+
+  logger.info(`✅ Notificações marcadas como lidas`)
+  res.json({ 
+    message: 'Todas as notificações foram marcadas como lidas'
+  })
+}))
+
+// PUT /api/notifications/mark-all-viewed - Marcar todas as notificações como visualizadas
+router.put('/mark-all-viewed', asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user?.id
+
+  if (!userId) {
+    return res.status(401).json({ 
+      error: 'Usuário não autenticado' 
+    })
+  }
+
+  logger.info(`📧 Marcando todas as notificações como visualizadas para usuário: ${userId}`)
+
+  const { data, error } = await supabase
+    .from('notifications')
+    .update({ 
+      viewed: true,
+      read: true,
+      updated_at: new Date().toISOString()
+    })
+    .eq('recipient_id', userId)
+    .eq('viewed', false)
+
+  if (error) {
+    logger.error('❌ Erro ao marcar notificações como visualizadas:', error)
+    throw new Error(`Erro ao marcar notificações como visualizadas: ${error.message}`)
+  }
+
+  logger.info(`✅ Notificações marcadas como visualizadas`)
+  res.json({ 
+    message: 'Todas as notificações foram marcadas como visualizadas'
+  })
+}))
+
 // GET /api/notifications/stats - Estatísticas de notificações
 router.get('/stats', asyncHandler(async (req: Request, res: Response) => {
   const userId = req.user?.id

@@ -139,6 +139,41 @@ export default function Dashboard() {
     }
   }, [processes])
 
+  // Recarregar alertas quando notificações mudarem (localStorage)
+  useEffect(() => {
+    if (processes.length > 0) {
+      const newAlerts = generateAlerts(processes, stats)
+      setAlerts(newAlerts)
+    }
+  }, [processes, stats]) // Depende de processes e stats para garantir que temos os dados necessários
+
+  // Listener para mudanças no localStorage (notificações)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      if (processes.length > 0) {
+        const newAlerts = generateAlerts(processes, stats)
+        setAlerts(newAlerts)
+      }
+    }
+
+    // Listener para mudanças no localStorage
+    window.addEventListener('storage', handleStorageChange)
+    
+    // Listener customizado para mudanças no localStorage (mesma aba)
+    const originalSetItem = localStorage.setItem
+    localStorage.setItem = function(key, value) {
+      originalSetItem.apply(this, [key, value])
+      if (key === 'notifications') {
+        handleStorageChange()
+      }
+    }
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      localStorage.setItem = originalSetItem
+    }
+  }, [processes, stats])
+
   async function fetchDashboardData() {
     try {
       setIsLoading(true)
@@ -214,63 +249,106 @@ export default function Dashboard() {
   function generateAlerts(processes: SEIProcess[], stats: DashboardStats): Alert[] {
     const alerts: Alert[] = []
 
-    // Processos vencidos
-    if (stats.processesExpired > 0) {
+    // Carregar notificações do localStorage para verificar quais foram marcadas como lidas/deletadas
+    const savedNotifications = JSON.parse(localStorage.getItem('notifications') || '[]')
+    const todayKey = new Date().toISOString().split('T')[0] // YYYY-MM-DD
+    
+    // Criar sets de IDs de processos que têm notificações marcadas como lidas ou deletadas
+    const dismissedProcessIds = new Set<string>()
+    
+    savedNotifications.forEach((notification: any) => {
+      if (notification.processId && (notification.read || notification.deleted)) {
+        dismissedProcessIds.add(notification.processId)
+      }
+    })
+
+    // Processos vencidos (excluindo os que foram marcados como lidos/deletados)
+    const expiredProcesses = processes.filter(p => {
+      if (!p.end_date || p.status === 'finalizado') return false
+      const endDate = getProcessDate(p.end_date)
+      const today = getToday()
+      endDate.setHours(0, 0, 0, 0)
+      today.setHours(0, 0, 0, 0)
+      return endDate < today && !dismissedProcessIds.has(p.id)
+    })
+
+    if (expiredProcesses.length > 0) {
       alerts.push({
         id: 'expired',
         type: 'error',
         title: 'Processos Vencidos',
-        description: `${stats.processesExpired} processo(s) já venceu(ram)`,
-        count: stats.processesExpired,
+        description: `${expiredProcesses.length} processo(s) já venceu(ram)`,
+        count: expiredProcesses.length,
         action: 'Ver Processos Vencidos'
       })
     }
 
-    // Processos vencendo hoje
-    if (stats.processesExpiringToday > 0) {
+    // Processos vencendo hoje (excluindo os que foram marcados como lidos/deletados)
+    const expiringToday = processes.filter(p => {
+      if (!p.end_date || p.status === 'finalizado') return false
+      const endDate = getProcessDate(p.end_date)
+      const today = getToday()
+      endDate.setHours(0, 0, 0, 0)
+      today.setHours(0, 0, 0, 0)
+      return endDate.getTime() === today.getTime() && !dismissedProcessIds.has(p.id)
+    })
+
+    if (expiringToday.length > 0) {
       alerts.push({
         id: 'expiring-today',
         type: 'error',
         title: 'Processos Vencendo Hoje',
-        description: `${stats.processesExpiringToday} processo(s) vence(m) hoje`,
-        count: stats.processesExpiringToday,
+        description: `${expiringToday.length} processo(s) vence(m) hoje`,
+        count: expiringToday.length,
         action: 'Ver Processos'
       })
     }
 
-    // Processos vencendo esta semana
-    if (stats.processesExpiringThisWeek > 0) {
+    // Processos vencendo esta semana (excluindo os que foram marcados como lidos/deletados)
+    const expiringThisWeek = processes.filter(p => {
+      if (!p.end_date || p.status === 'finalizado') return false
+      const endDate = getProcessDate(p.end_date)
+      const today = getToday()
+      const weekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
+      endDate.setHours(0, 0, 0, 0)
+      today.setHours(0, 0, 0, 0)
+      weekFromNow.setHours(0, 0, 0, 0)
+      return endDate >= today && endDate <= weekFromNow && !dismissedProcessIds.has(p.id)
+    })
+
+    if (expiringThisWeek.length > 0) {
       alerts.push({
         id: 'expiring-week',
         type: 'warning',
         title: 'Processos Vencendo Esta Semana',
-        description: `${stats.processesExpiringThisWeek} processo(s) vence(m) nos próximos 7 dias`,
-        count: stats.processesExpiringThisWeek,
+        description: `${expiringThisWeek.length} processo(s) vence(m) nos próximos 7 dias`,
+        count: expiringThisWeek.length,
         action: 'Ver Processos'
       })
     }
 
-    // Processos sem grupo
-    if (stats.processesWithoutGroup > 0) {
+    // Processos sem grupo (excluindo os que foram marcados como lidos/deletados)
+    const processesWithoutGroup = processes.filter(p => !p.group_id && !dismissedProcessIds.has(p.id))
+    if (processesWithoutGroup.length > 0) {
       alerts.push({
         id: 'no-group',
         type: 'warning',
         title: 'Processos Sem Responsável',
-        description: `${stats.processesWithoutGroup} processo(s) sem grupo responsável`,
-        count: stats.processesWithoutGroup,
+        description: `${processesWithoutGroup.length} processo(s) sem grupo responsável`,
+        count: processesWithoutGroup.length,
         action: 'Atribuir Grupos'
       })
     }
 
-    // Processos sem data de vencimento
-    const processesWithoutEndDate = processes.filter(p => !p.end_date).length
-    if (processesWithoutEndDate > 0) {
+    // Processos sem data de vencimento (excluindo os que foram marcados como lidos/deletados)
+    const processesWithoutEndDate = processes.filter(p => !p.end_date && !dismissedProcessIds.has(p.id))
+    if (processesWithoutEndDate.length > 0) {
       alerts.push({
         id: 'no-end-date',
         type: 'info',
         title: 'Processos Sem Data de Vencimento',
-        description: `${processesWithoutEndDate} processo(s) sem data de vencimento definida`,
-        count: processesWithoutEndDate,
+        description: `${processesWithoutEndDate.length} processo(s) sem data de vencimento definida`,
+        count: processesWithoutEndDate.length,
         action: 'Definir Datas'
       })
     }

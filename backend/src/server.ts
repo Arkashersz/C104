@@ -8,6 +8,7 @@ import { config } from './config/env'
 import { logger } from './utils/logger'
 import { errorHandler, notFoundHandler } from './middleware/error-handler'
 import { authMiddleware } from './middleware/auth'
+import { supabase } from './config/supabase'
 
 // Routes
 import contractsRouter from './routes/contracts'
