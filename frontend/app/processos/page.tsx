@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { SEIProcess } from '@/types/shared'
 import { useGroups } from '@/lib/hooks/use-groups'
@@ -29,6 +29,7 @@ export default function ProcessosPage() {
   const [selectedProcess, setSelectedProcess] = useState<SEIProcess | null>(null)
   const [deleteMsg, setDeleteMsg] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   // Função para formatar data simples (sem conversão de timezone)
   const formatDate = (dateString: string) => {
@@ -61,6 +62,20 @@ export default function ProcessosPage() {
 
   useEffect(() => { fetchGroups().then(setGroups) }, [fetchGroups])
   useEffect(() => { fetchProcesses() }, [groupFilter, typeFilter, statusFilter, search])
+
+  // Verificar se há um processo para destacar
+  useEffect(() => {
+    const highlightId = searchParams.get('highlight')
+    if (highlightId && processes.length > 0) {
+      const processToHighlight = processes.find(p => p.id === highlightId)
+      if (processToHighlight) {
+        setSelectedProcess(processToHighlight)
+        setShowDetails(true)
+        // Limpar o parâmetro da URL
+        router.replace('/processos')
+      }
+    }
+  }, [searchParams, processes, router])
 
   async function fetchProcesses() {
     let query = supabase.from('sei_processes').select('*, group:groups(id, name)').order('created_at', { ascending: false })

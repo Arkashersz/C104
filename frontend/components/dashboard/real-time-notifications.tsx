@@ -29,6 +29,7 @@ export function RealTimeNotifications({ processes, onProcessClick }: RealTimeNot
   const [showNotifications, setShowNotifications] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
   const [lastNotificationDate, setLastNotificationDate] = useState<string>('')
+  const [shownToastIds, setShownToastIds] = useState<Set<string>>(new Set())
 
   // Função para obter data atual (SEM conversão de fuso)
   const getToday = () => {
@@ -94,6 +95,11 @@ export function RealTimeNotifications({ processes, onProcessClick }: RealTimeNot
   // Simular notificações em tempo real
   useEffect(() => {
     const todayKey = getTodayKey()
+    
+    // Se mudou o dia, limpar os IDs de toast mostrados
+    if (lastNotificationDate && lastNotificationDate !== todayKey) {
+      setShownToastIds(new Set())
+    }
     
     // Se já mostrou notificações hoje, não mostrar novamente
     if (lastNotificationDate === todayKey) {
@@ -187,18 +193,21 @@ export function RealTimeNotifications({ processes, onProcessClick }: RealTimeNot
         })
       })
 
-      setNotifications(prev => {
-        const existingIds = prev.map(n => n.id)
-        const uniqueNewNotifications = newNotifications.filter(n => !existingIds.includes(n.id))
-        return [...uniqueNewNotifications, ...prev].slice(0, 20) // Manter apenas as 20 mais recentes
-      })
-
-      // Marcar que mostrou notificações hoje
-      setLastNotificationDate(todayKey)
+      return newNotifications
     }
 
-    // Gerar notificações apenas uma vez ao carregar
-    generateNotifications()
+    const newNotifications = generateNotifications()
+    
+    if (newNotifications.length > 0) {
+      setNotifications(prev => {
+        // Combinar notificações existentes com novas, evitando duplicatas
+        const existingIds = new Set(prev.map(n => n.id))
+        const uniqueNewNotifications = newNotifications.filter(n => !existingIds.has(n.id))
+        return [...prev, ...uniqueNewNotifications]
+      })
+      
+      setLastNotificationDate(todayKey)
+    }
   }, [processes, lastNotificationDate])
 
   // Atualizar contador de não lidas
@@ -206,27 +215,32 @@ export function RealTimeNotifications({ processes, onProcessClick }: RealTimeNot
     setUnreadCount(notifications.filter(n => !n.read).length)
   }, [notifications])
 
-  // Mostrar toasts apenas para notificações críticas e apenas uma vez
+  // Mostrar toast apenas para notificações críticas novas
   useEffect(() => {
     const criticalNotifications = notifications.filter(n => 
       (n.type === 'deadline_approaching' || n.type === 'process_expired') && 
       !n.read && 
-      n.shownToday
+      n.shownToday &&
+      !shownToastIds.has(n.id) // Só mostrar toast se ainda não foi mostrado
     )
     
     if (criticalNotifications.length > 0) {
-      // Mostrar toast apenas para notificações críticas
-      criticalNotifications.forEach(notification => {
-        toast.error(notification.message, {
-          duration: 5000,
-          action: {
-            label: 'Ver',
-            onClick: () => notification.processId && onProcessClick?.(notification.processId)
-          }
-        })
+      // Mostrar apenas uma notificação por vez para evitar spam
+      const notification = criticalNotifications[0]
+      
+      // Marcar como já mostrada
+      setShownToastIds(prev => new Set([...prev, notification.id]))
+      
+      // Mostrar toast com auto-hide após 5 segundos
+      toast.error(notification.message, {
+        duration: 5000, // 5 segundos
+        action: {
+          label: 'Ver',
+          onClick: () => notification.processId && onProcessClick?.(notification.processId)
+        }
       })
     }
-  }, [notifications, onProcessClick])
+  }, [notifications, onProcessClick, shownToastIds])
 
   const markAsRead = (notificationId: string) => {
     setNotifications(prev => 

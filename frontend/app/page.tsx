@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { SEIProcess } from '@/types/shared'
 import { useSEIProcesses } from '@/lib/hooks/use-sei-processes'
@@ -84,6 +85,7 @@ export default function Dashboard() {
   const [goals, setGoals] = useState<Goal[]>([])
   const [recentActivities, setRecentActivities] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter()
 
   // Função para obter data de hoje
   const getToday = () => {
@@ -377,7 +379,8 @@ export default function Dashboard() {
   }
 
   function handleProcessClick(processId: string) {
-    // router.push(`/processos/${processId}`) // This line was removed as per the new_code
+    // Navegar para a página de processos com o ID como parâmetro
+    router.push(`/processos?highlight=${processId}`)
   }
 
   function handleFilterChange(filteredProcesses: SEIProcess[]) {
