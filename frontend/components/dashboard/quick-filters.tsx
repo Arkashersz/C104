@@ -113,7 +113,7 @@ export function QuickFilters({ processes, onFilterChange }: QuickFiltersProps) {
       icon: <AlertTriangle className="h-4 w-4" />,
       color: 'bg-orange-100 text-orange-800 border-orange-200',
       count: processes.filter(p => {
-        if (!p.end_date) return false
+        if (!p.end_date || p.status === 'finalizado') return false
         const today = getToday()
         today.setHours(0, 0, 0, 0)
         const endDate = getProcessDate(p.end_date)
@@ -121,7 +121,7 @@ export function QuickFilters({ processes, onFilterChange }: QuickFiltersProps) {
         return endDate.getTime() === today.getTime()
       }).length,
       filter: (processes) => processes.filter(p => {
-        if (!p.end_date) return false
+        if (!p.end_date || p.status === 'finalizado') return false
         const today = getToday()
         today.setHours(0, 0, 0, 0)
         const endDate = getProcessDate(p.end_date)
@@ -135,7 +135,7 @@ export function QuickFilters({ processes, onFilterChange }: QuickFiltersProps) {
       icon: <AlertTriangle className="h-4 w-4" />,
       color: 'bg-red-100 text-red-800 border-red-200',
       count: processes.filter(p => {
-        if (!p.end_date) return false
+        if (!p.end_date || p.status === 'finalizado') return false
         const today = getToday()
         today.setHours(0, 0, 0, 0)
         const endDate = getProcessDate(p.end_date)
@@ -143,7 +143,7 @@ export function QuickFilters({ processes, onFilterChange }: QuickFiltersProps) {
         return endDate < today
       }).length,
       filter: (processes) => processes.filter(p => {
-        if (!p.end_date) return false
+        if (!p.end_date || p.status === 'finalizado') return false
         const today = getToday()
         today.setHours(0, 0, 0, 0)
         const endDate = getProcessDate(p.end_date)
@@ -157,7 +157,7 @@ export function QuickFilters({ processes, onFilterChange }: QuickFiltersProps) {
       icon: <Clock className="h-4 w-4" />,
       color: 'bg-orange-100 text-orange-800 border-orange-200',
       count: processes.filter(p => {
-        if (!p.end_date) return false
+        if (!p.end_date || p.status === 'finalizado') return false
         const today = getToday()
         today.setHours(0, 0, 0, 0)
         const weekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
@@ -166,7 +166,7 @@ export function QuickFilters({ processes, onFilterChange }: QuickFiltersProps) {
         return endDate >= today && endDate <= weekFromNow
       }).length,
       filter: (processes) => processes.filter(p => {
-        if (!p.end_date) return false
+        if (!p.end_date || p.status === 'finalizado') return false
         const today = getToday()
         today.setHours(0, 0, 0, 0)
         const weekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)

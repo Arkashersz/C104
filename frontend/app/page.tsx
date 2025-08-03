@@ -1,32 +1,31 @@
 ﻿'use client'
 
-import { useEffect, useState } from 'react'
-import { Sidebar } from '@/components/layout/sidebar'
-import { DashboardHeader } from '@/components/dashboard/dashboard-header'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { 
-  FileText, 
-  AlertTriangle, 
-  CheckCircle, 
-  Clock, 
-  Users, 
-  TrendingUp,
-  Calendar,
-  DollarSign,
-  Eye,
-  Plus,
-  Settings,
-  Bell,
-  Target,
-  BarChart3,
-  PieChart as PieChartIcon,
-  Activity
-} from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { SEIProcess } from '@/types/shared'
+import { useSEIProcesses } from '@/lib/hooks/use-sei-processes'
+import { Sidebar } from '@/components/layout/sidebar'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { 
+  Calendar, 
+  Clock, 
+  AlertTriangle, 
+  CheckCircle, 
+  Users, 
+  DollarSign,
+  TrendingUp,
+  Target,
+  Activity,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  FileText,
+  ShoppingCart,
+  Award,
+  Plus
+} from 'lucide-react'
 import { TimelineCalendar } from '@/components/dashboard/timeline-calendar'
 import { QuickFilters } from '@/components/dashboard/quick-filters'
 import { InteractiveCharts } from '@/components/dashboard/interactive-charts'
@@ -65,9 +64,8 @@ interface Goal {
 }
 
 export default function Dashboard() {
-  const router = useRouter()
   const supabase = createClient()
-  const [processes, setProcesses] = useState<SEIProcess[]>([])
+  const { processes, loading: processesLoading, fetchProcesses } = useSEIProcesses()
   const [filteredProcesses, setFilteredProcesses] = useState<SEIProcess[]>([])
   const [stats, setStats] = useState<DashboardStats>({
     totalProcesses: 0,
@@ -83,13 +81,15 @@ export default function Dashboard() {
     processesByGroup: {}
   })
   const [alerts, setAlerts] = useState<Alert[]>([])
-  const [recentActivities, setRecentActivities] = useState<any[]>([])
   const [goals, setGoals] = useState<Goal[]>([])
+  const [recentActivities, setRecentActivities] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  // Função para obter data atual (SEM conversão de fuso)
+  // Função para obter data de hoje
   const getToday = () => {
-    return new Date()
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return today
   }
 
   // Função para obter data sem conversão de timezone
@@ -113,48 +113,36 @@ export default function Dashboard() {
     return new Date(dateString)
   }
 
+  // Carregar dados do dashboard
   useEffect(() => {
     fetchDashboardData()
   }, [])
 
+  // Atualizar processos filtrados quando processos mudam
   useEffect(() => {
     setFilteredProcesses(processes)
+  }, [processes])
+
+  // Recalcular estatísticas quando processos mudam
+  useEffect(() => {
+    if (processes.length > 0) {
+      const newStats = calculateStats(processes)
+      setStats(newStats)
+      
+      const newAlerts = generateAlerts(processes, newStats)
+      setAlerts(newAlerts)
+      
+      const newGoals = generateGoals(processes, newStats)
+      setGoals(newGoals)
+    }
   }, [processes])
 
   async function fetchDashboardData() {
     try {
       setIsLoading(true)
       
-      // Buscar todos os processos
-      const { data: processesData, error } = await supabase
-        .from('sei_processes')
-        .select(`
-          *,
-          groups (
-            name
-          )
-        `)
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        console.error('Erro ao buscar processos:', error)
-        return
-      }
-
-      const processes = processesData || []
-      setProcesses(processes)
-
-      // Calcular estatísticas
-      const stats = calculateStats(processes)
-      setStats(stats)
-
-      // Gerar alertas
-      const alerts = generateAlerts(processes, stats)
-      setAlerts(alerts)
-
-      // Gerar metas
-      const goals = generateGoals(processes, stats)
-      setGoals(goals)
+      // Buscar todos os processos usando o hook
+      await fetchProcesses()
 
       // Buscar atividades recentes
       await fetchRecentActivities()
@@ -186,7 +174,7 @@ export default function Dashboard() {
 
     // Calcular processos vencendo e vencidos
     processes.forEach(process => {
-      if (process.end_date) {
+      if (process.end_date && process.status !== 'finalizado') {
         const endDate = getProcessDate(process.end_date)
         
         if (endDate.getTime() === today.getTime()) {
@@ -389,7 +377,7 @@ export default function Dashboard() {
   }
 
   function handleProcessClick(processId: string) {
-    router.push(`/processos/${processId}`)
+    // router.push(`/processos/${processId}`) // This line was removed as per the new_code
   }
 
   function handleFilterChange(filteredProcesses: SEIProcess[]) {

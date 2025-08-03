@@ -107,7 +107,7 @@ export function RealTimeNotifications({ processes, onProcessClick }: RealTimeNot
 
       // Processos vencidos (data já passou)
       const expiredProcesses = processes.filter(p => {
-        if (!p.end_date) return false
+        if (!p.end_date || p.status === 'finalizado') return false
         const endDate = getProcessDate(p.end_date)
         endDate.setHours(0, 0, 0, 0)
         return endDate < today
@@ -130,7 +130,7 @@ export function RealTimeNotifications({ processes, onProcessClick }: RealTimeNot
 
       // Processos vencendo hoje (data é hoje)
       const expiringToday = processes.filter(p => {
-        if (!p.end_date) return false
+        if (!p.end_date || p.status === 'finalizado') return false
         const endDate = getProcessDate(p.end_date)
         endDate.setHours(0, 0, 0, 0)
         return endDate.getTime() === today.getTime()

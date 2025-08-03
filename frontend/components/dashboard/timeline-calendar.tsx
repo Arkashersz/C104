@@ -73,7 +73,7 @@ export function TimelineCalendar({ processes, onProcessClick }: TimelineCalendar
       dayStart.setHours(0, 0, 0, 0)
       
       const dayProcesses = processes.filter(process => {
-        if (!process.end_date) return false
+        if (!process.end_date || process.status === 'finalizado') return false
         
         // Usar a data exatamente como está no banco
         const processEndDate = getProcessDate(process.end_date)
@@ -86,12 +86,14 @@ export function TimelineCalendar({ processes, onProcessClick }: TimelineCalendar
       today.setHours(0, 0, 0, 0)
 
       const criticalCount = dayProcesses.filter(process => {
+        if (process.status === 'finalizado') return false
         const processEndDate = getProcessDate(process.end_date!)
         processEndDate.setHours(0, 0, 0, 0)
         return processEndDate < today // Processos vencidos
       }).length
 
       const warningCount = dayProcesses.filter(process => {
+        if (process.status === 'finalizado') return false
         const processEndDate = getProcessDate(process.end_date!)
         processEndDate.setHours(0, 0, 0, 0)
         return processEndDate.getTime() === today.getTime() // Processos vencendo hoje
