@@ -24,6 +24,16 @@ interface NotificationSettings {
   group_assignments: boolean
   reminders: boolean
   email_frequency: 'daily' | 'weekly' | 'monthly'
+  // Configurações de horário
+  daily_time?: string // HH:MM
+  weekly_day?: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
+  weekly_time?: string // HH:MM
+  monthly_day?: number // 1-31
+  monthly_time?: string // HH:MM
+  // Configurações de relatórios
+  report_processes_near_expiry: boolean
+  report_group_processes: boolean
+  report_expiry_days: number // Dias antes do vencimento
 }
 
 export default function NotificationsPage() {
@@ -98,47 +108,73 @@ export default function NotificationsPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        // Buscar configurações da tabela user_notification_settings
-        const { data, error } = await supabase
-          .from('user_notification_settings')
-          .select('*')
-          .eq('user_id', user.id)
-          .single()
-
-        if (error && error.code !== 'PGRST116') {
-          // PGRST116 = no rows returned, que é normal se não há dados ainda
-          console.error('Erro ao carregar configurações:', error)
+        console.log('🔍 Buscando configurações para usuário:', user.id)
+        
+        // Carregar configurações do localStorage primeiro
+        const savedSettings = localStorage.getItem(`notification_settings_${user.id}`)
+        console.log('📦 Dados do localStorage:', savedSettings)
+        
+        if (savedSettings) {
+          try {
+            const parsedSettings = JSON.parse(savedSettings)
+            console.log('✅ Configurações parseadas:', parsedSettings)
+            setSettings({
+              daily_reports: parsedSettings.daily_reports ?? true,
+              process_updates: parsedSettings.process_updates ?? true,
+              group_assignments: parsedSettings.group_assignments ?? true,
+              reminders: parsedSettings.reminders ?? true,
+              email_frequency: parsedSettings.email_frequency || 'daily',
+              daily_time: parsedSettings.daily_time || '09:00',
+              weekly_day: parsedSettings.weekly_day || 'monday',
+              weekly_time: parsedSettings.weekly_time || '09:00',
+              monthly_day: parsedSettings.monthly_day || 1,
+              monthly_time: parsedSettings.monthly_time || '09:00',
+              report_processes_near_expiry: parsedSettings.report_processes_near_expiry ?? true,
+              report_group_processes: parsedSettings.report_group_processes ?? true,
+              report_expiry_days: parsedSettings.report_expiry_days || 7
+            })
+            console.log('✅ Configurações carregadas do localStorage com sucesso')
+            return
+          } catch (error) {
+            console.error('❌ Erro ao parsear configurações do localStorage:', error)
+          }
         }
 
-        if (data) {
-          setSettings({
-            daily_reports: data.daily_reports ?? true,
-            process_updates: data.process_updates ?? true,
-            group_assignments: data.group_assignments ?? true,
-            reminders: data.reminders ?? true,
-            email_frequency: data.email_frequency || 'daily'
-          })
-        } else {
-          // Se não há dados, usar configurações padrão
-          console.log('Usando configurações padrão - dados não encontrados na tabela')
-          setSettings({
-            daily_reports: true,
-            process_updates: true,
-            group_assignments: true,
-            reminders: true,
-            email_frequency: 'daily'
-          })
-        }
+        // Se não há configurações salvas, usar padrão
+        console.log('🔄 Usando configurações padrão - localStorage vazio')
+        setSettings({
+          daily_reports: true,
+          process_updates: true,
+          group_assignments: true,
+          reminders: true,
+          email_frequency: 'daily',
+          daily_time: '09:00',
+          weekly_day: 'monday',
+          weekly_time: '09:00',
+          monthly_day: 1,
+          monthly_time: '09:00',
+          report_processes_near_expiry: true,
+          report_group_processes: true,
+          report_expiry_days: 7
+        })
       }
     } catch (error) {
-      console.error('Erro ao carregar configurações:', error)
+      console.error('❌ Erro ao carregar configurações:', error)
       // Em caso de erro, usar configurações padrão
       setSettings({
         daily_reports: true,
         process_updates: true,
         group_assignments: true,
         reminders: true,
-        email_frequency: 'daily'
+        email_frequency: 'daily',
+        daily_time: '09:00',
+        weekly_day: 'monday',
+        weekly_time: '09:00',
+        monthly_day: 1,
+        monthly_time: '09:00',
+        report_processes_near_expiry: true,
+        report_group_processes: true,
+        report_expiry_days: 7
       })
     }
   }
@@ -153,54 +189,107 @@ export default function NotificationsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const updatedSettings = { ...settings, ...newSettings }
+        console.log('💾 Salvando configurações:', updatedSettings)
         
-        // Primeiro tentar atualizar, se não existir, inserir
-        const { data: existingData } = await supabase
-          .from('user_notification_settings')
-          .select('id')
-          .eq('user_id', user.id)
-          .single()
-
-        let error
-        if (existingData) {
-          // Atualizar registro existente
-          const { error: updateError } = await supabase
-            .from('user_notification_settings')
-            .update({
-              daily_reports: updatedSettings.daily_reports,
-              process_updates: updatedSettings.process_updates,
-              group_assignments: updatedSettings.group_assignments,
-              reminders: updatedSettings.reminders,
-              email_frequency: updatedSettings.email_frequency
+        // Salvar no localStorage
+        const localStorageKey = `notification_settings_${user.id}`
+        localStorage.setItem(localStorageKey, JSON.stringify(updatedSettings))
+        console.log('✅ Configurações salvas no localStorage com chave:', localStorageKey)
+        
+        // Verificar se foi salvo corretamente
+        const savedData = localStorage.getItem(localStorageKey)
+        console.log('🔍 Verificação - dados salvos:', savedData)
+        
+        // Sincronizar com o backend
+        try {
+          const response = await fetch(`/api/sync-user-settings`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userId: user.id,
+              settings: updatedSettings
             })
-            .eq('user_id', user.id)
-          error = updateError
-        } else {
-          // Inserir novo registro
-          const { error: insertError } = await supabase
-            .from('user_notification_settings')
-            .insert({
-              user_id: user.id,
-              daily_reports: updatedSettings.daily_reports,
-              process_updates: updatedSettings.process_updates,
-              group_assignments: updatedSettings.group_assignments,
-              reminders: updatedSettings.reminders,
-              email_frequency: updatedSettings.email_frequency
-            })
-          error = insertError
+          })
+          
+          if (response.ok) {
+            console.log('✅ Configurações sincronizadas com o backend')
+          } else {
+            console.log('⚠️ Erro ao sincronizar com o backend:', response.status)
+          }
+        } catch (error) {
+          console.log('⚠️ Erro ao sincronizar com o backend:', error)
         }
-
-        if (error) {
-          console.error('Erro ao salvar configurações:', error)
-          toast.error('Erro ao salvar configurações')
-          return
-        }
-
+        
+        // Atualizar estado
         setSettings(updatedSettings)
         toast.success('Configurações salvas com sucesso')
+        
+        // Tentar salvar no banco de dados em background (sem bloquear a UI)
+        try {
+          console.log('🔄 Tentando salvar no banco de dados...')
+          const { data: tableExists } = await supabase
+            .from('user_notification_settings')
+            .select('id')
+            .limit(1)
+
+          if (tableExists !== null) {
+            console.log('✅ Tabela existe, salvando no banco...')
+            // Tabela existe, tentar salvar no banco
+            const { data: existingData } = await supabase
+              .from('user_notification_settings')
+              .select('id')
+              .eq('user_id', user.id)
+              .single()
+
+            if (existingData) {
+              // Atualizar registro existente
+              const { error: updateError } = await supabase
+                .from('user_notification_settings')
+                .update({
+                  daily_reports: updatedSettings.daily_reports,
+                  process_updates: updatedSettings.process_updates,
+                  group_assignments: updatedSettings.group_assignments,
+                  reminders: updatedSettings.reminders,
+                  email_frequency: updatedSettings.email_frequency
+                })
+                .eq('user_id', user.id)
+              
+              if (updateError) {
+                console.log('⚠️ Erro ao atualizar no banco:', updateError)
+              } else {
+                console.log('✅ Configurações atualizadas no banco com sucesso')
+              }
+            } else {
+              // Inserir novo registro
+              const { error: insertError } = await supabase
+                .from('user_notification_settings')
+                .insert({
+                  user_id: user.id,
+                  daily_reports: updatedSettings.daily_reports,
+                  process_updates: updatedSettings.process_updates,
+                  group_assignments: updatedSettings.group_assignments,
+                  reminders: updatedSettings.reminders,
+                  email_frequency: updatedSettings.email_frequency
+                })
+              
+              if (insertError) {
+                console.log('⚠️ Erro ao inserir no banco:', insertError)
+              } else {
+                console.log('✅ Configurações inseridas no banco com sucesso')
+              }
+            }
+          } else {
+            console.log('⚠️ Tabela não existe no banco de dados')
+          }
+        } catch (error) {
+          console.log('⚠️ Erro ao salvar no banco de dados (não crítico):', error)
+          // Não mostrar erro para o usuário, pois localStorage já salvou
+        }
       }
     } catch (error) {
-      console.error('Erro ao atualizar configurações:', error)
+      console.error('❌ Erro ao atualizar configurações:', error)
       toast.error('Erro ao atualizar configurações')
     }
   }
@@ -217,6 +306,37 @@ export default function NotificationsPage() {
         return '⏰'
       default:
         return '📧'
+    }
+  }
+
+  // Função para verificar status das configurações
+  async function checkSettingsStatus() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const localStorageKey = `notification_settings_${user.id}`
+        const savedData = localStorage.getItem(localStorageKey)
+        
+        console.log('🔍 === VERIFICAÇÃO DE STATUS ===')
+        console.log('👤 Usuário ID:', user.id)
+        console.log('📦 localStorage key:', localStorageKey)
+        console.log('💾 Dados salvos:', savedData)
+        console.log('⚙️ Configurações atuais:', settings)
+        console.log('===============================')
+        
+        return {
+          userExists: !!user,
+          localStorageKey,
+          savedData: savedData ? JSON.parse(savedData) : null,
+          currentSettings: settings
+        }
+      } else {
+        console.log('❌ Usuário não autenticado')
+        return null
+      }
+    } catch (error) {
+      console.error('❌ Erro ao verificar status:', error)
+      return null
     }
   }
 
@@ -310,6 +430,209 @@ export default function NotificationsPage() {
                     <option value="weekly">Semanal</option>
                     <option value="monthly">Mensal</option>
                   </select>
+                </div>
+
+                {/* Configurações de Horário */}
+                {settings.email_frequency === 'daily' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Horário do envio diário</label>
+                    <input
+                      type="time"
+                      value={settings.daily_time || '09:00'}
+                      onChange={(e) => updateSettings({ daily_time: e.target.value })}
+                      className="w-full p-2 border rounded-md"
+                    />
+                  </div>
+                )}
+
+                {settings.email_frequency === 'weekly' && (
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Dia da semana</label>
+                      <select
+                        value={settings.weekly_day || 'monday'}
+                        onChange={(e) => updateSettings({ weekly_day: e.target.value as any })}
+                        className="w-full p-2 border rounded-md"
+                      >
+                        <option value="monday">Segunda-feira</option>
+                        <option value="tuesday">Terça-feira</option>
+                        <option value="wednesday">Quarta-feira</option>
+                        <option value="thursday">Quinta-feira</option>
+                        <option value="friday">Sexta-feira</option>
+                        <option value="saturday">Sábado</option>
+                        <option value="sunday">Domingo</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Horário</label>
+                      <input
+                        type="time"
+                        value={settings.weekly_time || '09:00'}
+                        onChange={(e) => updateSettings({ weekly_time: e.target.value })}
+                        className="w-full p-2 border rounded-md"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {settings.email_frequency === 'monthly' && (
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Dia do mês</label>
+                      <select
+                        value={settings.monthly_day || 1}
+                        onChange={(e) => updateSettings({ monthly_day: parseInt(e.target.value) })}
+                        className="w-full p-2 border rounded-md"
+                      >
+                        {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                          <option key={day} value={day}>{day}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Horário</label>
+                      <input
+                        type="time"
+                        value={settings.monthly_time || '09:00'}
+                        onChange={(e) => updateSettings({ monthly_time: e.target.value })}
+                        className="w-full p-2 border rounded-md"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Configurações de Relatórios */}
+                <div className="pt-4 border-t">
+                  <h3 className="text-sm font-medium mb-3">Configurações de Relatórios</h3>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={settings.report_processes_near_expiry}
+                          onChange={(e) => updateSettings({ report_processes_near_expiry: e.target.checked })}
+                          className="rounded"
+                        />
+                        <span className="text-sm">Processos próximos do vencimento</span>
+                      </label>
+                    </div>
+
+                    <div>
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={settings.report_group_processes}
+                          onChange={(e) => updateSettings({ report_group_processes: e.target.checked })}
+                          className="rounded"
+                        />
+                        <span className="text-sm">Processos do meu grupo</span>
+                      </label>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Dias antes do vencimento</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="30"
+                        value={settings.report_expiry_days || 7}
+                        onChange={(e) => updateSettings({ report_expiry_days: parseInt(e.target.value) })}
+                        className="w-full p-2 border rounded-md"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botões de Debug */}
+                <div className="pt-4 border-t space-y-2">
+                  <Button 
+                    onClick={async () => {
+                      await checkSettingsStatus()
+                      toast.info('Verifique o console para detalhes')
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                  >
+                    🔍 Verificar Status
+                  </Button>
+                  
+                  <Button 
+                    onClick={async () => {
+                      try {
+                        const { data: { user } } = await supabase.auth.getUser()
+                        if (user) {
+                          const response = await fetch(`/api/test-email`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                              email: user.email,
+                              name: user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário'
+                            })
+                          })
+                          
+                          if (response.ok) {
+                            const result = await response.json()
+                            toast.success(result.message)
+                            console.log('✅ Teste de email:', result)
+                          } else {
+                            const error = await response.json()
+                            toast.error(`Erro: ${error.error}`)
+                            console.error('❌ Erro no teste:', error)
+                          }
+                        }
+                      } catch (error) {
+                        console.error('Erro ao enviar relatório de teste:', error)
+                        toast.error('Erro ao enviar relatório de teste')
+                      }
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                  >
+                    📧 Enviar Relatório de Teste
+                  </Button>
+                  
+                  <Button 
+                    onClick={async () => {
+                      try {
+                        const { data: { user } } = await supabase.auth.getUser()
+                        if (user) {
+                          const response = await fetch(`/api/test-scheduled-email`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                              userId: user.id,
+                              settings: settings
+                            })
+                          })
+                          
+                          if (response.ok) {
+                            const result = await response.json()
+                            toast.success(result.message)
+                            console.log('✅ Teste de agendamento:', result)
+                          } else {
+                            const error = await response.json()
+                            toast.error(`Erro: ${error.error}`)
+                            console.error('❌ Erro no agendamento:', error)
+                          }
+                        }
+                      } catch (error) {
+                        console.error('Erro ao testar agendamento:', error)
+                        toast.error('Erro ao testar agendamento')
+                      }
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                  >
+                    📅 Testar Agendamento
+                  </Button>
                 </div>
               </div>
             </div>

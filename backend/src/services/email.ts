@@ -316,3 +316,27 @@ class EmailService {
 }
 
 export const emailService = new EmailService()
+
+// Função simples para testes
+export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
+  try {
+    // Verificar se as configurações estão definidas
+    if (!config.GMAIL_USER || !config.GMAIL_APP_PASSWORD) {
+      logger.warn('⚠️ Configuração de email incompleta. Simulando envio...')
+      logger.info(`📧 [SIMULAÇÃO] E-mail enviado para: ${to}`)
+      logger.info(`📧 [SIMULAÇÃO] Assunto: ${subject}`)
+      return
+    }
+
+    await transporter.sendMail({
+      from: config.GMAIL_USER,
+      to,
+      subject,
+      html,
+    })
+    logger.info(`📧 E-mail enviado para: ${to}`)
+  } catch (error) {
+    logger.error(`❌ Erro ao enviar e-mail para ${to}:`, error)
+    throw error
+  }
+}

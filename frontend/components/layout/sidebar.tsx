@@ -41,13 +41,30 @@ const NavLink = ({ href, icon, label }: { href: string, icon: React.ReactNode, l
 function UserProfile() {
   const router = useRouter()
   const supabase = createClient()
-  const [userEmail, setUserEmail] = useState('')
+  const [userName, setUserName] = useState('')
 
   useEffect(() => {
     const fetchUser = async () => {
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
-            setUserEmail(user.email || 'Usuário')
+            // Buscar nome de exibição do usuário
+            try {
+                const { data: profileData } = await supabase
+                    .from('users')
+                    .select('name')
+                    .eq('id', user.id)
+                    .single()
+
+                if (profileData && profileData.name) {
+                    setUserName(profileData.name)
+                } else {
+                    // Fallback para email se não houver nome
+                    setUserName(user.email?.split('@')[0] || 'Usuário')
+                }
+            } catch (error) {
+                // Fallback para email se houver erro
+                setUserName(user.email?.split('@')[0] || 'Usuário')
+            }
         }
     }
     fetchUser()
@@ -63,11 +80,10 @@ function UserProfile() {
         <div className="p-2 rounded-lg bg-white/5">
             <div className="flex items-center space-x-3">
                 <div className="w-9 h-9 bg-accent-light rounded-full flex items-center justify-center text-primary-dark font-semibold text-sm">
-                    {userEmail ? userEmail.charAt(0).toUpperCase() : '?'}
+                    {userName ? userName.charAt(0).toUpperCase() : '?'}
                 </div>
                 <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-white text-sm truncate">{userEmail}</p>
-                    <p className="text-xs text-white/60">Administrador</p>
+                    <p className="font-semibold text-white text-sm truncate">{userName}</p>
                 </div>
             </div>
         </div>
