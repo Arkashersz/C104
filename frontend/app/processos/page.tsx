@@ -30,6 +30,35 @@ export default function ProcessosPage() {
   const [deleteMsg, setDeleteMsg] = useState<string | null>(null)
   const router = useRouter()
 
+  // Função para formatar data simples (sem conversão de timezone)
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-'
+    
+    // Se a data já está no formato YYYY-MM-DD, usar diretamente
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      const [year, month, day] = dateString.split('-')
+      return `${day}/${month}/${year}`
+    }
+    
+    // Se tem T (ISO string), extrair apenas a parte da data
+    if (dateString.includes('T')) {
+      const datePart = dateString.split('T')[0]
+      const [year, month, day] = datePart.split('-')
+      return `${day}/${month}/${year}`
+    }
+    
+    // Fallback para outras formatações
+    const date = new Date(dateString)
+    return date.toLocaleDateString('pt-BR')
+  }
+
+  // Função para formatar data e hora simples (sem conversão de timezone)
+  const formatDateTime = (dateString: string) => {
+    if (!dateString) return '-'
+    const date = new Date(dateString)
+    return date.toLocaleString('pt-BR')
+  }
+
   useEffect(() => { fetchGroups().then(setGroups) }, [fetchGroups])
   useEffect(() => { fetchProcesses() }, [groupFilter, typeFilter, statusFilter, search])
 
@@ -102,7 +131,12 @@ export default function ProcessosPage() {
         {showDetails && selectedProcess && (
           <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full">
-              <ProcessDetails process={selectedProcess} onClose={() => setShowDetails(false)} />
+              <ProcessDetails 
+                process={selectedProcess} 
+                onClose={() => setShowDetails(false)}
+                formatDate={formatDate}
+                formatDateTime={formatDateTime}
+              />
             </div>
           </div>
         )}
@@ -114,6 +148,7 @@ export default function ProcessosPage() {
               <th className="p-3 text-left">Tipo</th>
               <th className="p-3 text-left">Grupo</th>
               <th className="p-3 text-left">Status</th>
+              <th className="p-3 text-left">Data de Vencimento</th>
               <th className="p-3 text-left">Ações</th>
             </tr>
           </thead>
@@ -125,6 +160,7 @@ export default function ProcessosPage() {
                 <td className="p-3">{proc.type}</td>
                 <td className="p-3">{proc.group?.name || '-'}</td>
                 <td className="p-3">{getStatusLabel(proc.status)}</td>
+                <td className="p-3">{formatDate(proc.end_date || '')}</td>
                 <td className="p-3 flex gap-2">
                   <button
                     className="p-2 rounded hover:bg-gray-100 transition"

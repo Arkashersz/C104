@@ -126,6 +126,12 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
   logger.info(`👤 Usuário: ${userId}`)
   logger.info(`👥 Grupo: ${groupId}`)
   logger.info(`📝 Dados completos:`, validated)
+  
+  // DEBUG: Log das datas recebidas
+  logger.info(`📅 DEBUG - Datas recebidas no backend (criação):`)
+  logger.info(`📅 start_date: "${validated.start_date}"`)
+  logger.info(`📅 end_date: "${validated.end_date}"`)
+  logger.info(`📅 opening_date: "${validated.opening_date}"`)
 
   // Inserir processo
   const { data: process, error } = await supabase
@@ -136,6 +142,12 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
   if (error) throw new Error(error.message)
 
   logger.info(`✅ Processo criado com ID: ${process.id}`)
+  
+  // DEBUG: Log das datas após criação
+  logger.info(`📅 DEBUG - Datas após criação:`)
+  logger.info(`📅 start_date (criado): "${process.start_date}"`)
+  logger.info(`📅 end_date (criado): "${process.end_date}"`)
+  logger.info(`📅 opening_date (criado): "${process.opening_date}"`)
 
   // Log de criação
   await logProcessAction(process.id, userId, 'create', { process })
@@ -189,17 +201,29 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
   logger.info(`📝 Atualizando processo SEI: ${id}`)
   logger.info(`👤 Usuário: ${userId}`)
   logger.info(`👥 Novo grupo: ${groupId}`)
+  
+  // DEBUG: Log das datas recebidas
+  logger.info(`📅 DEBUG - Datas recebidas no backend:`)
+  logger.info(`📅 start_date: "${validated.start_date}"`)
+  logger.info(`📅 end_date: "${validated.end_date}"`)
+  logger.info(`📅 opening_date: "${validated.opening_date}"`)
 
   // Buscar processo atual para verificar se mudou o grupo
   const { data: currentProcess, error: currentError } = await supabase
     .from('sei_processes')
-    .select('group_id, process_number, title')
+    .select('group_id, process_number, title, start_date, end_date, opening_date')
     .eq('id', id)
     .single()
   if (currentError) throw new Error(currentError.message)
 
   logger.info(`📋 Processo atual - Grupo: ${currentProcess.group_id}`)
   logger.info(`📋 Mudança de grupo: ${currentProcess.group_id} → ${groupId}`)
+  
+  // DEBUG: Log das datas atuais no banco
+  logger.info(`📅 DEBUG - Datas atuais no banco:`)
+  logger.info(`📅 start_date (banco): "${currentProcess.start_date}"`)
+  logger.info(`📅 end_date (banco): "${currentProcess.end_date}"`)
+  logger.info(`📅 opening_date (banco): "${currentProcess.opening_date}"`)
 
   // Atualizar processo
   const { data: process, error } = await supabase
@@ -211,6 +235,12 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
   if (error) throw new Error(error.message)
 
   logger.info(`✅ Processo atualizado com sucesso`)
+  
+  // DEBUG: Log das datas após atualização
+  logger.info(`📅 DEBUG - Datas após atualização:`)
+  logger.info(`📅 start_date (novo): "${process.start_date}"`)
+  logger.info(`📅 end_date (novo): "${process.end_date}"`)
+  logger.info(`📅 opening_date (novo): "${process.opening_date}"`)
 
   // Log de edição
   await logProcessAction(id, userId, 'update', { changes: validated })

@@ -98,7 +98,6 @@ export function ProcessForm({ initialData, onSuccess, onCancel }: ProcessFormPro
     delete prepared.id
     delete prepared.created_at
     delete prepared.updated_at
-    delete prepared.created_by
     delete prepared.group
     
     return prepared
@@ -106,59 +105,56 @@ export function ProcessForm({ initialData, onSuccess, onCancel }: ProcessFormPro
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setFormError(null)
+    
+    const validation = validateForm()
+    if (!validation.isValid) {
+      setFormError(validation.errors.join(', '))
+      return
+    }
     
     try {
-      // Validar formulário
-      const validation = validateForm()
-      if (!validation.isValid) {
-        setFormError(validation.errors.join(', '))
-        return
-      }
-      
-      const preparedData = prepareData()
+      const data = prepareData()
+      console.log('📤 Dados preparados para envio:', data)
       
       if (form.id) {
-        // Atualizar processo existente
-        const result = await updateProcess(form.id, preparedData)
-        if (result) {
-          console.log('Processo atualizado com sucesso:', result)
-          onSuccess()
-        } else {
-          setFormError('Erro ao atualizar processo')
-        }
+        await updateProcess(form.id, data)
       } else {
-        // Criar novo processo
-        const result = await createProcess(preparedData as Omit<SEIProcess, 'id'>)
-        if (result) {
-          console.log('Processo criado com sucesso:', result)
-          onSuccess()
-        } else {
-          setFormError('Erro ao criar processo')
-        }
+        await createProcess(data)
       }
+      
+      onSuccess()
     } catch (err) {
-      console.error('Erro no formulário:', err)
-      setFormError(err instanceof Error ? err.message : 'Erro desconhecido')
+      console.error('❌ Erro ao salvar processo:', err)
+      setFormError('Erro ao salvar processo. Tente novamente.')
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {(formError || error) && (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <h2 className="text-xl font-bold mb-4">
+        {form.id ? 'Editar Processo' : 'Novo Processo'}
+      </h2>
+      
+      {formError && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-          {formError || error}
+          {formError}
         </div>
       )}
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
+      )}
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium mb-1">Número do Processo *</label>
           <Input 
             value={form.process_number || ''} 
             onChange={e => updateField('process_number', e.target.value)} 
-            required 
-            placeholder="Ex: SEI-2024-001"
+            placeholder="Ex: 000007895-3/2025"
+            required
           />
         </div>
         
@@ -174,7 +170,6 @@ export function ProcessForm({ initialData, onSuccess, onCancel }: ProcessFormPro
             <option value="contrato">Contrato</option>
             <option value="licitacao">Licitação</option>
             <option value="dispensa">Dispensa</option>
-            <option value="outro">Outro</option>
           </select>
         </div>
         
@@ -183,8 +178,8 @@ export function ProcessForm({ initialData, onSuccess, onCancel }: ProcessFormPro
           <Input 
             value={form.title || ''} 
             onChange={e => updateField('title', e.target.value)} 
-            required 
             placeholder="Título do processo"
+            required
           />
         </div>
         
@@ -193,8 +188,8 @@ export function ProcessForm({ initialData, onSuccess, onCancel }: ProcessFormPro
           <Textarea 
             value={form.description || ''} 
             onChange={e => updateField('description', e.target.value)} 
-            rows={3} 
             placeholder="Descrição detalhada do processo"
+            rows={3}
           />
         </div>
         

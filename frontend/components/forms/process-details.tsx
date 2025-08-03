@@ -3,9 +3,39 @@ import { SEIProcessWithRelations } from '@/types/shared'
 interface ProcessDetailsProps {
   process: SEIProcessWithRelations
   onClose: () => void
+  formatDate?: (dateString: string) => string
+  formatDateTime?: (dateString: string) => string
 }
 
-export function ProcessDetails({ process, onClose }: ProcessDetailsProps) {
+export function ProcessDetails({ 
+  process, 
+  onClose, 
+  formatDate = (dateString: string) => {
+    if (!dateString) return '-'
+    
+    // Se a data já está no formato YYYY-MM-DD, usar diretamente
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      const [year, month, day] = dateString.split('-')
+      return `${day}/${month}/${year}`
+    }
+    
+    // Se tem T (ISO string), extrair apenas a parte da data
+    if (dateString.includes('T')) {
+      const datePart = dateString.split('T')[0]
+      const [year, month, day] = datePart.split('-')
+      return `${day}/${month}/${year}`
+    }
+    
+    // Fallback para outras formatações
+    const date = new Date(dateString)
+    return date.toLocaleDateString('pt-BR')
+  },
+  formatDateTime = (dateString: string) => {
+    if (!dateString) return '-'
+    const date = new Date(dateString)
+    return date.toLocaleString('pt-BR')
+  }
+}: ProcessDetailsProps) {
   return (
     <div className="p-4">
       <h2 className="text-xl font-bold mb-4">Detalhes do Processo</h2>
@@ -38,22 +68,22 @@ export function ProcessDetails({ process, onClose }: ProcessDetailsProps) {
           <strong>Valor Estimado:</strong> {process.estimated_value ? `R$ ${process.estimated_value.toLocaleString('pt-BR')}` : '-'}
         </div>
         <div>
-          <strong>Data de Início:</strong> {process.start_date || '-'}
+          <strong>Data de Início:</strong> {formatDate(process.start_date || '')}
         </div>
         <div>
-          <strong>Data de Término:</strong> {process.end_date || '-'}
+          <strong>Data de Término:</strong> {formatDate(process.end_date || '')}
         </div>
         <div>
-          <strong>Data de Abertura:</strong> {process.opening_date || '-'}
+          <strong>Data de Abertura:</strong> {formatDate(process.opening_date || '')}
         </div>
         <div>
           <strong>Notificações:</strong> {process.notification_days ? process.notification_days.join(', ') : '-'}
         </div>
         <div>
-          <strong>Criado em:</strong> {process.created_at ? new Date(process.created_at).toLocaleString('pt-BR') : '-'}
+          <strong>Criado em:</strong> {formatDateTime(process.created_at || '')}
         </div>
         <div>
-          <strong>Atualizado em:</strong> {process.updated_at ? new Date(process.updated_at).toLocaleString('pt-BR') : '-'}
+          <strong>Atualizado em:</strong> {formatDateTime(process.updated_at || '')}
         </div>
       </div>
       <div className="flex justify-end mt-6">
