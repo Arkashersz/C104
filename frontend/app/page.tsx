@@ -14,7 +14,6 @@ import {
   Clock, 
   AlertTriangle, 
   CheckCircle, 
-  Users, 
   DollarSign,
   TrendingUp,
   Activity,
@@ -43,7 +42,6 @@ interface DashboardStats {
   totalValue: number
   processesByType: Record<string, number>
   processesByStatus: Record<string, number>
-  processesByGroup: Record<string, number>
 }
 
 interface Alert {
@@ -69,8 +67,7 @@ export default function Dashboard() {
     processesWithoutGroup: 0,
     totalValue: 0,
     processesByType: {},
-    processesByStatus: {},
-    processesByGroup: {}
+    processesByStatus: {}
   })
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [recentActivities, setRecentActivities] = useState<any[]>([])
@@ -209,8 +206,7 @@ export default function Dashboard() {
       processesWithoutGroup: processes.filter(p => !p.group_id).length,
       totalValue: 0,
       processesByType: {},
-      processesByStatus: {},
-      processesByGroup: {}
+      processesByStatus: {}
     }
 
     // Calcular processos vencendo e vencidos
@@ -241,10 +237,6 @@ export default function Dashboard() {
 
       // Contar por status
       stats.processesByStatus[process.status] = (stats.processesByStatus[process.status] || 0) + 1
-
-      // Contar por grupo
-      const groupName = process.groups?.name || 'Sem Grupo'
-      stats.processesByGroup[groupName] = (stats.processesByGroup[groupName] || 0) + 1
     })
 
     return stats
@@ -664,41 +656,6 @@ export default function Dashboard() {
               processes={filteredProcesses.length > 0 ? filteredProcesses : processes} 
               onProcessClick={handleProcessClick}
             />
-          </div>
-
-          {/* Distribuição por Grupo */}
-          <div className="mb-8">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-purple-500" />
-                  Distribuição por Grupo
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {Object.entries(dynamicStats.processesByGroup).map(([group, count]) => (
-                    <div key={group} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                          <Users className="h-5 w-5 text-purple-600" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium">{group}</h4>
-                          <p className="text-sm text-gray-600">{count} processo(s)</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-purple-600">{count}</div>
-                        <div className="text-xs text-gray-500">
-                          {((count / dynamicStats.totalProcesses) * 100).toFixed(1)}%
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
           {/* Atividades Recentes */}
