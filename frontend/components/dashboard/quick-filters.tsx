@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -108,50 +108,6 @@ export function QuickFilters({ processes, onFilterChange }: QuickFiltersProps) {
       filter: (processes) => processes.filter(p => !p.group_id)
     },
     {
-      id: 'vencendo_hoje',
-      label: 'Vencendo Hoje',
-      icon: <AlertTriangle className="h-4 w-4" />,
-      color: 'bg-orange-100 text-orange-800 border-orange-200',
-      count: processes.filter(p => {
-        if (!p.end_date || p.status === 'finalizado') return false
-        const today = getToday()
-        today.setHours(0, 0, 0, 0)
-        const endDate = getProcessDate(p.end_date)
-        endDate.setHours(0, 0, 0, 0)
-        return endDate.getTime() === today.getTime()
-      }).length,
-      filter: (processes) => processes.filter(p => {
-        if (!p.end_date || p.status === 'finalizado') return false
-        const today = getToday()
-        today.setHours(0, 0, 0, 0)
-        const endDate = getProcessDate(p.end_date)
-        endDate.setHours(0, 0, 0, 0)
-        return endDate.getTime() === today.getTime()
-      })
-    },
-    {
-      id: 'vencido',
-      label: 'Vencido',
-      icon: <AlertTriangle className="h-4 w-4" />,
-      color: 'bg-red-100 text-red-800 border-red-200',
-      count: processes.filter(p => {
-        if (!p.end_date || p.status === 'finalizado') return false
-        const today = getToday()
-        today.setHours(0, 0, 0, 0)
-        const endDate = getProcessDate(p.end_date)
-        endDate.setHours(0, 0, 0, 0)
-        return endDate < today
-      }).length,
-      filter: (processes) => processes.filter(p => {
-        if (!p.end_date || p.status === 'finalizado') return false
-        const today = getToday()
-        today.setHours(0, 0, 0, 0)
-        const endDate = getProcessDate(p.end_date)
-        endDate.setHours(0, 0, 0, 0)
-        return endDate < today
-      })
-    },
-    {
       id: 'vencendo_semana',
       label: 'Vencendo Esta Semana',
       icon: <Clock className="h-4 w-4" />,
@@ -177,15 +133,16 @@ export function QuickFilters({ processes, onFilterChange }: QuickFiltersProps) {
     }
   ], [processes])
 
+  // Aplicar filtros quando activeFilters mudar
+  useEffect(() => {
+    applyFilters(activeFilters)
+  }, [activeFilters, processes])
+
   const toggleFilter = (filterId: string) => {
     setActiveFilters(prev => {
-      const newFilters = prev.includes(filterId)
+      return prev.includes(filterId)
         ? prev.filter(id => id !== filterId)
         : [...prev, filterId]
-      
-      // Aplicar filtros
-      applyFilters(newFilters)
-      return newFilters
     })
   }
 
@@ -197,9 +154,38 @@ export function QuickFilters({ processes, onFilterChange }: QuickFiltersProps) {
 
     const activeFilterOptions = filterOptions.filter(option => filters.includes(option.id))
     
-    // Aplicar todos os filtros ativos (AND logic)
+    // Aplicar todos os filtros ativos (OR logic para diferentes categorias, AND logic para mesma categoria)
     let filteredProcesses = processes
-    activeFilterOptions.forEach(option => {
+    
+    // Separar filtros por categoria
+    const statusFilters = activeFilterOptions.filter(option => 
+      ['em_andamento', 'finalizado', 'cancelado'].includes(option.id)
+    )
+    const typeFilters = activeFilterOptions.filter(option => 
+      ['contrato', 'licitacao', 'dispensa'].includes(option.id)
+    )
+    const otherFilters = activeFilterOptions.filter(option => 
+      !['em_andamento', 'finalizado', 'cancelado', 'contrato', 'licitacao', 'dispensa'].includes(option.id)
+    )
+
+    // Aplicar filtros de status (OR logic)
+    if (statusFilters.length > 0) {
+      const statusResults = statusFilters.flatMap(option => option.filter(processes))
+      filteredProcesses = filteredProcesses.filter(process => 
+        statusResults.some(result => result.id === process.id)
+      )
+    }
+
+    // Aplicar filtros de tipo (OR logic)
+    if (typeFilters.length > 0) {
+      const typeResults = typeFilters.flatMap(option => option.filter(processes))
+      filteredProcesses = filteredProcesses.filter(process => 
+        typeResults.some(result => result.id === process.id)
+      )
+    }
+
+    // Aplicar outros filtros (AND logic)
+    otherFilters.forEach(option => {
       filteredProcesses = option.filter(filteredProcesses)
     })
 
@@ -208,15 +194,44 @@ export function QuickFilters({ processes, onFilterChange }: QuickFiltersProps) {
 
   const clearAllFilters = () => {
     setActiveFilters([])
-    onFilterChange(processes)
   }
 
   const getFilteredCount = () => {
     if (activeFilters.length === 0) return processes.length
     
     const activeFilterOptions = filterOptions.filter(option => activeFilters.includes(option.id))
+    
+    // Separar filtros por categoria
+    const statusFilters = activeFilterOptions.filter(option => 
+      ['em_andamento', 'finalizado', 'cancelado'].includes(option.id)
+    )
+    const typeFilters = activeFilterOptions.filter(option => 
+      ['contrato', 'licitacao', 'dispensa'].includes(option.id)
+    )
+    const otherFilters = activeFilterOptions.filter(option => 
+      !['em_andamento', 'finalizado', 'cancelado', 'contrato', 'licitacao', 'dispensa'].includes(option.id)
+    )
+
     let filteredProcesses = processes
-    activeFilterOptions.forEach(option => {
+    
+    // Aplicar filtros de status (OR logic)
+    if (statusFilters.length > 0) {
+      const statusResults = statusFilters.flatMap(option => option.filter(processes))
+      filteredProcesses = filteredProcesses.filter(process => 
+        statusResults.some(result => result.id === process.id)
+      )
+    }
+
+    // Aplicar filtros de tipo (OR logic)
+    if (typeFilters.length > 0) {
+      const typeResults = typeFilters.flatMap(option => option.filter(processes))
+      filteredProcesses = filteredProcesses.filter(process => 
+        typeResults.some(result => result.id === process.id)
+      )
+    }
+
+    // Aplicar outros filtros (AND logic)
+    otherFilters.forEach(option => {
       filteredProcesses = option.filter(filteredProcesses)
     })
     
@@ -224,81 +239,120 @@ export function QuickFilters({ processes, onFilterChange }: QuickFiltersProps) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5 text-indigo-500" />
-            Filtros Rápidos
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            {activeFilters.length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearAllFilters}
-                className="text-xs"
-              >
-                Limpar Filtros
-              </Button>
-            )}
-            <Badge variant="secondary">
-              {getFilteredCount()} de {processes.length}
-            </Badge>
-          </div>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-gray-500" />
+          <span className="text-sm font-medium text-gray-700">Filtros Ativos</span>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {filterOptions.map((option) => {
-            const isActive = activeFilters.includes(option.id)
-            return (
-              <Button
-                key={option.id}
-                variant={isActive ? "default" : "outline"}
-                size="sm"
-                onClick={() => toggleFilter(option.id)}
-                className={`h-auto p-3 flex flex-col items-center gap-2 ${
-                  isActive ? option.color : 'hover:bg-gray-50'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  {option.icon}
-                  <span className="text-xs font-medium">{option.label}</span>
-                </div>
-                <Badge 
-                  variant={isActive ? "secondary" : "outline"}
-                  className="text-xs"
+        <div className="flex items-center gap-2">
+          {activeFilters.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearAllFilters}
+              className="text-xs h-7 px-2"
+            >
+              Limpar
+            </Button>
+          )}
+          <Badge variant="secondary" className="text-xs">
+            {getFilteredCount()}/{processes.length}
+          </Badge>
+        </div>
+      </div>
+      
+      <div className="space-y-2">
+        {/* Filtros de Status */}
+        <div>
+          <h5 className="text-xs font-medium text-gray-600 mb-2">Status</h5>
+          <div className="flex flex-wrap gap-1">
+            {filterOptions.filter(option => ['em_andamento', 'finalizado', 'cancelado'].includes(option.id)).map((option) => {
+              const isActive = activeFilters.includes(option.id)
+              return (
+                <Button
+                  key={option.id}
+                  variant={isActive ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => toggleFilter(option.id)}
+                  className={`h-7 px-2 text-xs ${
+                    isActive ? option.color : 'hover:bg-gray-50'
+                  }`}
                 >
-                  {option.count}
-                </Badge>
-              </Button>
-            )
-          })}
+                  {option.icon}
+                  <span className="ml-1">{option.label}</span>
+                  <Badge 
+                    variant={isActive ? "secondary" : "outline"}
+                    className="ml-1 text-xs"
+                  >
+                    {option.count}
+                  </Badge>
+                </Button>
+              )
+            })}
+          </div>
         </div>
 
-        {activeFilters.length > 0 && (
-          <div className="mt-4 pt-4 border-t">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm text-gray-600">Filtros ativos:</span>
-              {activeFilters.map(filterId => {
-                const option = filterOptions.find(opt => opt.id === filterId)
-                return (
-                  <Badge
-                    key={filterId}
-                    variant="secondary"
-                    className="text-xs cursor-pointer hover:bg-red-100"
-                    onClick={() => toggleFilter(filterId)}
+        {/* Filtros de Tipo */}
+        <div>
+          <h5 className="text-xs font-medium text-gray-600 mb-2">Tipo</h5>
+          <div className="flex flex-wrap gap-1">
+            {filterOptions.filter(option => ['contrato', 'licitacao', 'dispensa'].includes(option.id)).map((option) => {
+              const isActive = activeFilters.includes(option.id)
+              return (
+                <Button
+                  key={option.id}
+                  variant={isActive ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => toggleFilter(option.id)}
+                  className={`h-7 px-2 text-xs ${
+                    isActive ? option.color : 'hover:bg-gray-50'
+                  }`}
+                >
+                  {option.icon}
+                  <span className="ml-1">{option.label}</span>
+                  <Badge 
+                    variant={isActive ? "secondary" : "outline"}
+                    className="ml-1 text-xs"
                   >
-                    {option?.label}
-                    <X className="h-3 w-3 ml-1" />
+                    {option.count}
                   </Badge>
-                )
-              })}
-            </div>
+                </Button>
+              )
+            })}
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </div>
+
+        {/* Outros Filtros */}
+        <div>
+          <h5 className="text-xs font-medium text-gray-600 mb-2">Outros</h5>
+          <div className="flex flex-wrap gap-1">
+            {filterOptions.filter(option => !['em_andamento', 'finalizado', 'cancelado', 'contrato', 'licitacao', 'dispensa'].includes(option.id)).map((option) => {
+              const isActive = activeFilters.includes(option.id)
+              return (
+                <Button
+                  key={option.id}
+                  variant={isActive ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => toggleFilter(option.id)}
+                  className={`h-7 px-2 text-xs ${
+                    isActive ? option.color : 'hover:bg-gray-50'
+                  }`}
+                >
+                  {option.icon}
+                  <span className="ml-1">{option.label}</span>
+                  <Badge 
+                    variant={isActive ? "secondary" : "outline"}
+                    className="ml-1 text-xs"
+                  >
+                    {option.count}
+                  </Badge>
+                </Button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
   )
 } 

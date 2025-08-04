@@ -105,13 +105,13 @@ export function InteractiveCharts({ processes }: InteractiveChartsProps) {
   function formatMonth(monthKey: string) {
     const [year, month] = monthKey.split('-')
     const date = new Date(parseInt(year), parseInt(month) - 1)
-    return date.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })
+    return date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
   }
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white p-3 border rounded-lg shadow-lg">
+        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
           <p className="font-medium">{label}</p>
           {payload.map((entry: any, index: number) => (
             <p key={index} style={{ color: entry.color }}>
@@ -125,113 +125,137 @@ export function InteractiveCharts({ processes }: InteractiveChartsProps) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-green-500" />
-            Gráficos Interativos
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <Button
-              variant={activeChart === 'pie' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setActiveChart('pie')}
-            >
-              <PieChartIcon className="h-4 w-4 mr-1" />
-              Pizza
-            </Button>
-            <Button
-              variant={activeChart === 'bar' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setActiveChart('bar')}
-            >
-              <BarChart3 className="h-4 w-4 mr-1" />
-              Barras
-            </Button>
-            <Button
-              variant={activeChart === 'line' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setActiveChart('line')}
-            >
-              <Activity className="h-4 w-4 mr-1" />
-              Linha
-            </Button>
-          </div>
+    <div className="space-y-4">
+      {/* Controles de Visualização */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h4 className="text-lg font-semibold text-gray-900">Visualizações</h4>
+          <p className="text-sm text-gray-600">Análise detalhada dos dados</p>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div className="h-80">
-          {activeChart === 'pie' && (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip content={<CustomTooltip />} />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-
-          {activeChart === 'bar' && (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="value" fill="#3B82F6" />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-
-          {activeChart === 'line' && (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={lineData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip content={<CustomTooltip />} />
-                <Line type="monotone" dataKey="created" stroke="#3B82F6" name="Criados" />
-                <Line type="monotone" dataKey="completed" stroke="#10B981" name="Finalizados" />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
+        <div className="flex items-center gap-2">
+          <Button
+            variant={activeChart === 'pie' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setActiveChart('pie')}
+            className="h-8 px-3"
+          >
+            <PieChartIcon className="h-4 w-4 mr-1" />
+            Pizza
+          </Button>
+          <Button
+            variant={activeChart === 'bar' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setActiveChart('bar')}
+            className="h-8 px-3"
+          >
+            <BarChart3 className="h-4 w-4 mr-1" />
+            Barras
+          </Button>
+          <Button
+            variant={activeChart === 'line' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setActiveChart('line')}
+            className="h-8 px-3"
+          >
+            <Activity className="h-4 w-4 mr-1" />
+            Linha
+          </Button>
         </div>
+      </div>
 
-        {/* Estatísticas rápidas */}
-        <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">
-              {processes.filter(p => p.status === 'em_andamento').length}
+      {/* Gráfico Ativo */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        {activeChart === 'pie' && (
+          <div>
+            <h5 className="text-base font-medium text-gray-900 mb-4">Distribuição por Tipo</h5>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
-            <div className="text-sm text-gray-600">Em Andamento</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">
-              {processes.filter(p => p.status === 'finalizado').length}
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {pieData.map((entry, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <div 
+                    className="w-3 h-3 rounded-full" 
+                    style={{ backgroundColor: entry.color }}
+                  />
+                  <span className="text-sm text-gray-600">{entry.name}</span>
+                  <span className="text-sm font-medium">{entry.value}</span>
+                </div>
+              ))}
             </div>
-            <div className="text-sm text-gray-600">Finalizados</div>
           </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-red-600">
-              {processes.filter(p => p.status === 'cancelado').length}
+        )}
+
+        {activeChart === 'bar' && (
+          <div>
+            <h5 className="text-base font-medium text-gray-900 mb-4">Distribuição por Status</h5>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={barData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
+                  <YAxis stroke="#6b7280" fontSize={12} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                    {barData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-            <div className="text-sm text-gray-600">Cancelados</div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        )}
+
+        {activeChart === 'line' && (
+          <div>
+            <h5 className="text-base font-medium text-gray-900 mb-4">Evolução Mensal</h5>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={lineData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="month" stroke="#6b7280" fontSize={12} />
+                  <YAxis stroke="#6b7280" fontSize={12} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Line 
+                    type="monotone" 
+                    dataKey="created" 
+                    stroke="#3B82F6" 
+                    strokeWidth={2}
+                    dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
+                    name="Criados"
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="completed" 
+                    stroke="#10B981" 
+                    strokeWidth={2}
+                    dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }}
+                    name="Finalizados"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   )
 } 

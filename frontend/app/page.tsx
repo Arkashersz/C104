@@ -25,7 +25,8 @@ import {
   FileText,
   ShoppingCart,
   Award,
-  Plus
+  Plus,
+  Filter
 } from 'lucide-react'
 import { TimelineCalendar } from '@/components/dashboard/timeline-calendar'
 import { QuickFilters } from '@/components/dashboard/quick-filters'
@@ -115,6 +116,24 @@ export default function Dashboard() {
     return new Date(dateString)
   }
 
+  // Calcular stats dinâmicos baseados nos processos atualmente visíveis
+  const dynamicStats = useMemo(() => {
+    const processesToUse = filteredProcesses.length > 0 ? filteredProcesses : processes
+    return calculateStats(processesToUse)
+  }, [filteredProcesses, processes])
+
+  // Calcular alertas dinâmicos baseados nos processos atualmente visíveis
+  const dynamicAlerts = useMemo(() => {
+    const processesToUse = filteredProcesses.length > 0 ? filteredProcesses : processes
+    return generateAlerts(processesToUse, dynamicStats)
+  }, [filteredProcesses, processes, dynamicStats])
+
+  // Calcular metas dinâmicas baseadas nos processos atualmente visíveis
+  const dynamicGoals = useMemo(() => {
+    const processesToUse = filteredProcesses.length > 0 ? filteredProcesses : processes
+    return generateGoals(processesToUse, dynamicStats)
+  }, [filteredProcesses, processes, dynamicStats])
+
   // Carregar dados do dashboard
   useEffect(() => {
     fetchDashboardData()
@@ -149,6 +168,9 @@ export default function Dashboard() {
 
   // Listener para mudanças no localStorage (notificações)
   useEffect(() => {
+    // Verificar se estamos no cliente
+    if (typeof window === 'undefined') return
+
     const handleStorageChange = () => {
       if (processes.length > 0) {
         const newAlerts = generateAlerts(processes, stats)
@@ -249,8 +271,17 @@ export default function Dashboard() {
   function generateAlerts(processes: SEIProcess[], stats: DashboardStats): Alert[] {
     const alerts: Alert[] = []
 
-    // Carregar notificações do localStorage para verificar quais foram marcadas como lidas/deletadas
-    const savedNotifications = JSON.parse(localStorage.getItem('notifications') || '[]')
+    // Verificar se localStorage está disponível (cliente apenas)
+    let savedNotifications: any[] = []
+    if (typeof window !== 'undefined') {
+      try {
+        savedNotifications = JSON.parse(localStorage.getItem('notifications') || '[]')
+      } catch (error) {
+        console.warn('Erro ao carregar notificações do localStorage:', error)
+        savedNotifications = []
+      }
+    }
+    
     const todayKey = new Date().toISOString().split('T')[0] // YYYY-MM-DD
     
     // Criar sets de IDs de processos que têm notificações marcadas como lidas ou deletadas
@@ -463,6 +494,7 @@ export default function Dashboard() {
 
   function handleFilterChange(filteredProcesses: SEIProcess[]) {
     setFilteredProcesses(filteredProcesses)
+    // Os stats, alertas e metas serão atualizados automaticamente via useMemo
   }
 
   if (isLoading) {
@@ -520,9 +552,9 @@ export default function Dashboard() {
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.totalProcesses}</div>
+                <div className="text-2xl font-bold">{dynamicStats.totalProcesses}</div>
                 <p className="text-xs text-muted-foreground">
-                  {stats.activeProcesses} ativos, {stats.finishedProcesses} finalizados
+                  {dynamicStats.activeProcesses} ativos, {dynamicStats.finishedProcesses} finalizados
                 </p>
               </CardContent>
             </Card>
@@ -533,9 +565,9 @@ export default function Dashboard() {
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-orange-600">{stats.processesExpiringThisWeek}</div>
+                <div className="text-2xl font-bold text-orange-600">{dynamicStats.processesExpiringThisWeek}</div>
                 <p className="text-xs text-muted-foreground">
-                  {stats.processesExpiringToday} vence(m) hoje
+                  {dynamicStats.processesExpiringToday} vence(m) hoje
                 </p>
               </CardContent>
             </Card>
@@ -546,7 +578,7 @@ export default function Dashboard() {
                 <AlertTriangle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-red-600">{stats.processesExpired}</div>
+                <div className="text-2xl font-bold text-red-600">{dynamicStats.processesExpired}</div>
                 <p className="text-xs text-muted-foreground">
                   Precisam de atenção
                 </p>
@@ -560,7 +592,7 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-600">
-                  {formatCurrency(stats.totalValue)}
+                  {formatCurrency(dynamicStats.totalValue)}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Valor estimado dos processos
@@ -580,7 +612,7 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {goals.map((goal) => {
+                  {dynamicGoals.map((goal) => {
                     const percentage = Math.min((goal.current / goal.target) * 100, 100)
                     const isOverTarget = goal.current > goal.target
                     
@@ -611,70 +643,128 @@ export default function Dashboard() {
             </Card>
           </div>
 
-          {/* Filtros Rápidos */}
+          {/* Análise de Dados Integrada */}
           <div className="mb-8">
-            <QuickFilters 
-              processes={processes} 
-              onFilterChange={handleFilterChange}
-            />
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-indigo-500" />
+                    Análise de Dados em Tempo Real
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {filteredProcesses.length > 0 ? `${filteredProcesses.length} processos filtrados` : `${processes.length} total de processos`}
+                    </Badge>
+                    {filteredProcesses.length > 0 && filteredProcesses.length !== processes.length && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFilteredProcesses([])}
+                        className="text-xs"
+                      >
+                        Limpar Filtros
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Filtros Rápidos Integrados */}
+                  <div className="lg:col-span-1">
+                    <div className="space-y-4">
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-700 mb-3">Filtros de Análise</h4>
+                        <QuickFilters 
+                          processes={processes} 
+                          onFilterChange={handleFilterChange}
+                        />
+                      </div>
+                      
+                      {/* Métricas Rápidas */}
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-medium text-gray-700">Métricas Rápidas</h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="p-3 bg-gray-50 rounded-lg">
+                            <div className="text-2xl font-bold text-blue-600">{dynamicStats.activeProcesses}</div>
+                            <div className="text-xs text-gray-600">Em Andamento</div>
+                          </div>
+                          <div className="p-3 bg-gray-50 rounded-lg">
+                            <div className="text-2xl font-bold text-green-600">{dynamicStats.finishedProcesses}</div>
+                            <div className="text-xs text-gray-600">Finalizados</div>
+                          </div>
+                          <div className="p-3 bg-gray-50 rounded-lg">
+                            <div className="text-2xl font-bold text-orange-600">{dynamicStats.processesExpiringThisWeek}</div>
+                            <div className="text-xs text-gray-600">Vencendo em 7d</div>
+                          </div>
+                          <div className="p-3 bg-gray-50 rounded-lg">
+                            <div className="text-2xl font-bold text-red-600">{dynamicStats.processesExpired}</div>
+                            <div className="text-xs text-gray-600">Vencidos</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Gráficos Interativos */}
+                  <div className="lg:col-span-2">
+                    <InteractiveCharts processes={filteredProcesses.length > 0 ? filteredProcesses : processes} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-            {/* Alertas Críticos */}
-            <div>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5 text-orange-500" />
-                    Alertas Críticos
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {alerts.length === 0 ? (
-                    <div className="text-center py-8">
-                      <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                      <p className="text-gray-600">Nenhum alerta crítico</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {alerts.map((alert) => (
-                        <div key={alert.id} className="flex items-start gap-3 p-3 rounded-lg border">
-                          <div className={`w-2 h-2 rounded-full mt-2 ${
-                            alert.type === 'error' ? 'bg-red-500' :
-                            alert.type === 'warning' ? 'bg-orange-500' : 'bg-blue-500'
-                          }`}></div>
-                          <div className="flex-1">
-                            <h4 className="font-medium text-sm">{alert.title}</h4>
-                            <p className="text-xs text-gray-600 mt-1">{alert.description}</p>
-                            {alert.action && (
-                              <Button variant="link" size="sm" className="p-0 h-auto text-xs mt-1">
-                                {alert.action} →
-                              </Button>
-                            )}
-                          </div>
-                          {alert.count && (
-                            <Badge variant="secondary" className="ml-2">
-                              {alert.count}
-                            </Badge>
+          {/* Alertas Críticos */}
+          <div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-orange-500" />
+                  Alertas Críticos
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {dynamicAlerts.length === 0 ? (
+                  <div className="text-center py-8">
+                    <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                    <p className="text-gray-600">Nenhum alerta crítico</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {dynamicAlerts.map((alert) => (
+                      <div key={alert.id} className="flex items-start gap-3 p-3 rounded-lg border">
+                        <div className={`w-2 h-2 rounded-full mt-2 ${
+                          alert.type === 'error' ? 'bg-red-500' :
+                          alert.type === 'warning' ? 'bg-orange-500' : 'bg-blue-500'
+                        }`}></div>
+                        <div className="flex-1">
+                          <h4 className="font-medium text-sm">{alert.title}</h4>
+                          <p className="text-xs text-gray-600 mt-1">{alert.description}</p>
+                          {alert.action && (
+                            <Button variant="link" size="sm" className="p-0 h-auto text-xs mt-1">
+                              {alert.action} →
+                            </Button>
                           )}
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Gráficos Interativos */}
-            <div>
-              <InteractiveCharts processes={processes} />
-            </div>
+                        {alert.count && (
+                          <Badge variant="secondary" className="ml-2">
+                            {alert.count}
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Timeline de Vencimentos */}
           <div className="mb-8">
             <TimelineCalendar 
-              processes={processes} 
+              processes={filteredProcesses.length > 0 ? filteredProcesses : processes} 
               onProcessClick={handleProcessClick}
             />
           </div>
@@ -690,7 +780,7 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {Object.entries(stats.processesByGroup).map(([group, count]) => (
+                  {Object.entries(dynamicStats.processesByGroup).map(([group, count]) => (
                     <div key={group} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
@@ -704,7 +794,7 @@ export default function Dashboard() {
                       <div className="text-right">
                         <div className="text-2xl font-bold text-purple-600">{count}</div>
                         <div className="text-xs text-gray-500">
-                          {((count / stats.totalProcesses) * 100).toFixed(1)}%
+                          {((count / dynamicStats.totalProcesses) * 100).toFixed(1)}%
                         </div>
                       </div>
                     </div>
