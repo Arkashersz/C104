@@ -17,7 +17,6 @@ import {
   Users, 
   DollarSign,
   TrendingUp,
-  Target,
   Activity,
   ChevronLeft,
   ChevronRight,
@@ -56,15 +55,6 @@ interface Alert {
   action?: string
 }
 
-interface Goal {
-  id: string
-  title: string
-  target: number
-  current: number
-  deadline: string
-  type: 'processes' | 'value' | 'completion'
-}
-
 export default function Dashboard() {
   const supabase = createClient()
   const { processes, loading: processesLoading, fetchProcesses } = useSEIProcesses()
@@ -83,7 +73,6 @@ export default function Dashboard() {
     processesByGroup: {}
   })
   const [alerts, setAlerts] = useState<Alert[]>([])
-  const [goals, setGoals] = useState<Goal[]>([])
   const [recentActivities, setRecentActivities] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
@@ -128,12 +117,6 @@ export default function Dashboard() {
     return generateAlerts(processesToUse, dynamicStats)
   }, [filteredProcesses, processes, dynamicStats])
 
-  // Calcular metas dinâmicas baseadas nos processos atualmente visíveis
-  const dynamicGoals = useMemo(() => {
-    const processesToUse = filteredProcesses.length > 0 ? filteredProcesses : processes
-    return generateGoals(processesToUse, dynamicStats)
-  }, [filteredProcesses, processes, dynamicStats])
-
   // Carregar dados do dashboard
   useEffect(() => {
     fetchDashboardData()
@@ -153,8 +136,7 @@ export default function Dashboard() {
       const newAlerts = generateAlerts(processes, newStats)
       setAlerts(newAlerts)
       
-      const newGoals = generateGoals(processes, newStats)
-      setGoals(newGoals)
+      // Removed as per edit hint
     }
   }, [processes])
 
@@ -387,49 +369,6 @@ export default function Dashboard() {
     return alerts
   }
 
-  function generateGoals(processes: SEIProcess[], stats: DashboardStats): Goal[] {
-    const currentMonth = getToday().getMonth()
-    const currentYear = getToday().getFullYear()
-    
-    const processesThisMonth = processes.filter(p => {
-      const createdDate = getProcessDate(p.created_at)
-      return createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear
-    }).length
-
-    const completedThisMonth = processes.filter(p => {
-      if (p.status !== 'finalizado') return false
-      const completedDate = getProcessDate(p.updated_at || p.created_at)
-      return completedDate.getMonth() === currentMonth && completedDate.getFullYear() === currentYear
-    }).length
-
-    return [
-      {
-        id: 'processes-created',
-        title: 'Processos Criados (Mês)',
-        target: 20,
-        current: processesThisMonth,
-        deadline: `${getToday().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`,
-        type: 'processes'
-      },
-      {
-        id: 'processes-completed',
-        title: 'Processos Finalizados (Mês)',
-        target: 15,
-        current: completedThisMonth,
-        deadline: `${getToday().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`,
-        type: 'completion'
-      },
-      {
-        id: 'completion-rate',
-        title: 'Taxa de Conclusão',
-        target: 75,
-        current: stats.totalProcesses > 0 ? Math.round((stats.finishedProcesses / stats.totalProcesses) * 100) : 0,
-        deadline: 'Contínuo',
-        type: 'completion'
-      }
-    ]
-  }
-
   async function fetchRecentActivities() {
     try {
       // Buscar logs recentes (se a tabela existir)
@@ -597,48 +536,6 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground">
                   Valor estimado dos processos
                 </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Metas e Objetivos */}
-          <div className="mb-8">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Target className="h-5 w-5 text-purple-500" />
-                  Metas e Objetivos
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {dynamicGoals.map((goal) => {
-                    const percentage = Math.min((goal.current / goal.target) * 100, 100)
-                    const isOverTarget = goal.current > goal.target
-                    
-                    return (
-                      <div key={goal.id} className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-medium text-sm">{goal.title}</h4>
-                          <Badge variant={isOverTarget ? "default" : "secondary"}>
-                            {goal.current}/{goal.target}
-                          </Badge>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className={`h-2 rounded-full transition-all ${
-                              isOverTarget ? 'bg-green-500' : 'bg-blue-500'
-                            }`}
-                            style={{ width: `${percentage}%` }}
-                          ></div>
-                        </div>
-                        <p className="text-xs text-gray-600">
-                          Prazo: {goal.deadline}
-                        </p>
-                      </div>
-                    )
-                  })}
-                </div>
               </CardContent>
             </Card>
           </div>
