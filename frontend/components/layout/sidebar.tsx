@@ -13,7 +13,8 @@ import {
   BarChart2,
   Users,
   Settings,
-  LogOut
+  LogOut,
+  StickyNote
 } from 'lucide-react'
 
 // Componente para os links de navegação
@@ -104,6 +105,7 @@ export function Sidebar() {
     { href: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
     { href: '/processos', icon: <FileText size={20} />, label: 'Processos' },
     { href: '/grupos', icon: <Users size={20} />, label: 'Grupos' },
+    { href: '/notas', icon: <StickyNote size={20} />, label: 'Notas' },
     { href: '/notifications', icon: <Bell size={20} />, label: 'Notificações' },
     { href: '/settings', icon: <Settings size={20} />, label: 'Configurações' },
   ]
