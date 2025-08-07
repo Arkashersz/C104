@@ -24,7 +24,9 @@ import {
   ShoppingCart,
   Award,
   Plus,
-  Filter
+  Filter,
+  Users,
+  X
 } from 'lucide-react'
 import { TimelineCalendar } from '@/components/dashboard/timeline-calendar'
 import { QuickFilters } from '@/components/dashboard/quick-filters'
@@ -71,6 +73,8 @@ export default function Dashboard() {
   })
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [recentActivities, setRecentActivities] = useState<any[]>([])
+  const [currentPage, setCurrentPage] = useState(1)
+  const logsPerPage = 5
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
 
@@ -174,6 +178,11 @@ export default function Dashboard() {
       localStorage.setItem = originalSetItem
     }
   }, [processes, stats])
+
+  // Resetar página quando logs mudarem
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [recentActivities.length])
 
   async function fetchDashboardData() {
     try {
@@ -363,23 +372,84 @@ export default function Dashboard() {
 
   async function fetchRecentActivities() {
     try {
-      // Buscar logs recentes (se a tabela existir)
-      const { data: logs } = await supabase
+      // Buscar logs recentes com detalhes do processo
+      const { data: logs, error } = await supabase
         .from('sei_process_logs')
-        .select('*')
+        .select(`
+          *,
+          sei_processes (
+            id,
+            process_number,
+            title,
+            type,
+            status,
+            estimated_value
+          )
+        `)
         .order('created_at', { ascending: false })
-        .limit(5)
+        .limit(50) // Buscar mais logs para paginação
 
-      if (logs) {
-        setRecentActivities(logs)
+      if (error) {
+        console.error('Erro ao buscar logs:', error)
+        setRecentActivities([])
+        return
+      }
+
+      if (logs && logs.length > 0) {
+        // Buscar informações dos usuários
+        const userIds = [...new Set(logs.map(log => log.user_id).filter(Boolean))]
+        let userMap = {}
+        
+        if (userIds.length > 0) {
+          try {
+            // Buscar na tabela users (mesma que o backend usa)
+            const { data: users, error } = await supabase
+              .from('users')
+              .select('id, name, email')
+              .in('id', userIds)
+            
+            if (error) {
+              console.log('Erro ao buscar usuários:', error)
+            } else if (users && users.length > 0) {
+              userMap = users.reduce((acc, user) => {
+                acc[user.id] = { full_name: user.name || user.email, email: user.email }
+                return acc
+              }, {})
+            }
+            
+            console.log('Usuários encontrados:', userMap)
+          } catch (userError) {
+            console.log('Erro ao buscar dados dos usuários:', userError)
+          }
+        }
+
+        // Processar logs e adicionar informações do usuário
+        const processedLogs = logs.map((log) => {
+          let userInfo = { full_name: 'Usuário', email: 'usuario@empresa.com' }
+          
+          if (log.user_id && userMap[log.user_id]) {
+            userInfo = userMap[log.user_id]
+          } else if (log.user_id) {
+            // Se tem user_id mas não encontrou na tabela, usar email como nome
+            userInfo = { full_name: log.user_id, email: log.user_id }
+          }
+          
+          console.log(`Log ${log.id}: user_id=${log.user_id}, user_name=${userInfo.full_name}`)
+          
+          return {
+            ...log,
+            user_name: userInfo.full_name,
+            user_email: userInfo.email
+          }
+        })
+        
+        setRecentActivities(processedLogs)
+      } else {
+        setRecentActivities([])
       }
     } catch (error) {
-      // Se a tabela não existir, usar dados simulados
-      setRecentActivities([
-        { id: '1', action: 'create', process_number: 'SEI-2024-001', created_at: new Date().toISOString() },
-        { id: '2', action: 'update', process_number: 'SEI-2024-002', created_at: new Date(Date.now() - 3600000).toISOString() },
-        { id: '3', action: 'assign_group', process_number: 'SEI-2024-003', created_at: new Date(Date.now() - 7200000).toISOString() }
-      ])
+      console.error('Erro ao buscar atividades recentes:', error)
+      setRecentActivities([])
     }
   }
 
@@ -426,6 +496,62 @@ export default function Dashboard() {
   function handleFilterChange(filteredProcesses: SEIProcess[]) {
     setFilteredProcesses(filteredProcesses)
     // Os stats, alertas e metas serão atualizados automaticamente via useMemo
+  }
+
+  function getActionIcon(action: string) {
+    switch (action) {
+      case 'create': return <Plus className="h-4 w-4 text-green-600" />
+      case 'update': return <Activity className="h-4 w-4 text-blue-600" />
+      case 'update_status': return <CheckCircle className="h-4 w-4 text-purple-600" />
+      case 'assign_group': return <Users className="h-4 w-4 text-orange-600" />
+      case 'update_deadline': return <Calendar className="h-4 w-4 text-red-600" />
+      case 'add_document': return <FileText className="h-4 w-4 text-indigo-600" />
+      case 'delete': return <X className="h-4 w-4 text-red-600" />
+      default: return <Activity className="h-4 w-4 text-gray-600" />
+    }
+  }
+
+  function getActionLabel(action: string) {
+    switch (action) {
+      case 'create': return 'Processo criado'
+      case 'update': return 'Processo atualizado'
+      case 'update_status': return 'Status alterado'
+      case 'assign_group': return 'Grupo atribuído'
+      case 'update_deadline': return 'Prazo atualizado'
+      case 'add_document': return 'Documento anexado'
+      case 'delete': return 'Processo removido'
+      default: return 'Ação realizada'
+    }
+  }
+
+  function getActionColor(action: string) {
+    switch (action) {
+      case 'create': return 'bg-green-100 text-green-800'
+      case 'update': return 'bg-blue-100 text-blue-800'
+      case 'update_status': return 'bg-purple-100 text-purple-800'
+      case 'assign_group': return 'bg-orange-100 text-orange-800'
+      case 'update_deadline': return 'bg-red-100 text-red-800'
+      case 'add_document': return 'bg-indigo-100 text-indigo-800'
+      case 'delete': return 'bg-red-100 text-red-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  function formatTimeAgo(dateString: string) {
+    const now = new Date()
+    const date = new Date(dateString)
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
+    
+    if (diffInMinutes < 1) return 'Agora mesmo'
+    if (diffInMinutes < 60) return `${diffInMinutes} min atrás`
+    
+    const diffInHours = Math.floor(diffInMinutes / 60)
+    if (diffInHours < 24) return `${diffInHours}h atrás`
+    
+    const diffInDays = Math.floor(diffInHours / 24)
+    if (diffInDays < 7) return `${diffInDays}d atrás`
+    
+    return date.toLocaleDateString('pt-BR')
   }
 
   if (isLoading) {
@@ -662,32 +788,98 @@ export default function Dashboard() {
           <div className="mb-8">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-indigo-500" />
-                  Atividades Recentes
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-indigo-500" />
+                    Atividades Recentes
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {recentActivities.length} atividades
+                    </Badge>
+                    <Button variant="outline" size="sm" className="text-xs">
+                      Ver Todas
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {recentActivities.map((activity, index) => (
-                    <div key={activity.id || index} className="flex items-center gap-3 p-3 border rounded-lg">
-                      <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
-                        <FileText className="h-4 w-4 text-indigo-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">
-                          {activity.action === 'create' && 'Processo criado'}
-                          {activity.action === 'update' && 'Processo atualizado'}
-                          {activity.action === 'assign_group' && 'Grupo atribuído'}
-                          {activity.process_number && ` - ${activity.process_number}`}
-                        </p>
-                        <p className="text-xs text-gray-600">
-                          {getProcessDate(activity.created_at).toLocaleString('pt-BR')}
-                        </p>
-                      </div>
+                {recentActivities.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-600">Nenhuma atividade recente</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-3">
+                      {recentActivities
+                        .slice((currentPage - 1) * logsPerPage, currentPage * logsPerPage)
+                        .map((activity, index) => {
+                          const processData = activity.sei_processes || activity
+                          
+                          return (
+                            <div key={activity.id || index} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                              {/* Ícone da Ação */}
+                              <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                                {getActionIcon(activity.action)}
+                              </div>
+
+                              {/* Conteúdo Principal */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1">
+                                    <p className="text-sm font-medium text-gray-900">
+                                      {activity.details || getActionLabel(activity.action)} - {processData.process_number}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      {activity.user_name || 'Usuário do Sistema'} • {formatTimeAgo(activity.created_at)}
+                                    </p>
+                                  </div>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="text-xs"
+                                    onClick={() => handleProcessClick(processData.id || activity.id)}
+                                  >
+                                    Ver
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
                     </div>
-                  ))}
-                </div>
+
+                    {/* Paginação */}
+                    {recentActivities.length > logsPerPage && (
+                      <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                        <div className="text-sm text-gray-500">
+                          Página {currentPage} de {Math.ceil(recentActivities.length / logsPerPage)}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            disabled={currentPage === 1}
+                            className="text-xs"
+                          >
+                            Anterior
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(prev => Math.min(Math.ceil(recentActivities.length / logsPerPage), prev + 1))}
+                            disabled={currentPage === Math.ceil(recentActivities.length / logsPerPage)}
+                            className="text-xs"
+                          >
+                            Próxima
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>

@@ -149,8 +149,8 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
   logger.info(`📅 end_date (criado): "${process.end_date}"`)
   logger.info(`📅 opening_date (criado): "${process.opening_date}"`)
 
-  // Log de criação
-  await logProcessAction(process.id, userId, 'create', { process })
+  // Log de criação - REMOVIDO para evitar duplicação com trigger
+  // await logProcessAction(process.id, userId, 'create', { process })
 
   // Enviar e-mail para todos do grupo
   if (groupId) {
@@ -242,8 +242,8 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
   logger.info(`📅 end_date (novo): "${process.end_date}"`)
   logger.info(`📅 opening_date (novo): "${process.opening_date}"`)
 
-  // Log de edição
-  await logProcessAction(id, userId, 'update', { changes: validated })
+  // Log de edição - REMOVIDO para evitar duplicação com trigger
+  // await logProcessAction(id, userId, 'update', { changes: validated })
 
   // Se mudou o grupo, enviar e-mail para todos do novo grupo
   if (groupId && groupId !== currentProcess.group_id) {
@@ -301,4 +301,24 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
   res.json({ data })
 }))
 
-export default router 
+// DELETE /api/sei-processes/:id - Remover processo
+router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params
+  const userId = req.user?.id
+
+  logger.info(`🗑️ Removendo processo SEI: ${id}`)
+  logger.info(`👤 Usuário: ${userId}`)
+
+  const { error } = await supabase
+    .from('sei_processes')
+    .delete()
+    .eq('id', id)
+  if (error) throw new Error(error.message)
+
+  // Log de remoção - REMOVIDO para evitar duplicação com trigger
+  // await logProcessAction(id, userId, 'delete')
+
+  res.json({ message: 'Processo removido com sucesso' })
+}))
+
+export default router
