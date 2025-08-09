@@ -1,10 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    appDir: true,
-  },
   images: {
-    domains: ['https://dzyrmbvacyfnkqsuoula.supabase.co'],
+    domains: ['dzyrmbvacyfnkqsuoula.supabase.co'],
   },
   async rewrites() {
     return [

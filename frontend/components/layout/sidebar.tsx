@@ -14,7 +14,7 @@ import {
   Users,
   Settings,
   LogOut,
-  StickyNote
+  ChevronDown
 } from 'lucide-react'
 
 // Componente para os links de navegação
@@ -35,6 +35,37 @@ const NavLink = ({ href, icon, label }: { href: string, icon: React.ReactNode, l
       </div>
       <span>{label}</span>
     </Link>
+  )
+}
+
+// Grupo dobrável para seção de Notas
+function NavGroupNotas() {
+  const pathname = usePathname()
+  const [open, setOpen] = useState(pathname.startsWith('/notas'))
+
+  return (
+    <div className="rounded-lg">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-white/90 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+      >
+        <span className="flex items-center gap-3">
+          <FileText size={20} />
+          <span>Notas</span>
+        </span>
+        <ChevronDown
+          size={18}
+          className={`transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <div className="mt-1 ml-2 pl-2 border-l border-white/10 space-y-1">
+          <NavLink href="/notas/nova" icon={<FileText size={16} />} label="Nova Nota" />
+          <NavLink href="/notas/minhas" icon={<FileText size={16} />} label="Minhas Notas" />
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -105,10 +136,11 @@ export function Sidebar() {
     { href: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
     { href: '/processos', icon: <FileText size={20} />, label: 'Processos' },
     { href: '/grupos', icon: <Users size={20} />, label: 'Grupos' },
-    { href: '/notas', icon: <StickyNote size={20} />, label: 'Notas' },
     { href: '/notifications', icon: <Bell size={20} />, label: 'Notificações' },
     { href: '/settings', icon: <Settings size={20} />, label: 'Configurações' },
   ]
+
+  const otherNavItems = navItems.filter(item => !['/', '/processos'].includes(item.href))
 
   return (
     <aside className="fixed top-0 left-0 w-64 h-full bg-gradient-to-b from-primary-dark to-primary-medium text-white z-10">
@@ -118,8 +150,16 @@ export function Sidebar() {
 
       <nav className="p-4">
         <div className="flex flex-col space-y-2">
-            {navItems.map((item) => (
-            <NavLink key={item.href} {...item} />
+            {/* Dashboard e Processos */}
+            <NavLink href='/' icon={<LayoutDashboard size={20} />} label='Dashboard' />
+            <NavLink href='/processos' icon={<FileText size={20} />} label='Processos' />
+
+            {/* Grupo Notas logo abaixo de Processos */}
+            <NavGroupNotas />
+
+            {/* Demais itens */}
+            {otherNavItems.map((item) => (
+              <NavLink key={item.href} {...item} />
             ))}
         </div>
       </nav>
